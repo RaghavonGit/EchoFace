@@ -59,7 +59,12 @@ Plans:
   2. The optimizer runs 150 gradient descent steps on the W-space latent with Adam (lr=0.01, λ=0.1 regularization) and StyleGAN generator parameters frozen (requires_grad=False throughout)
   3. CLIP cosine similarity between the text prompt and the generated image increases monotonically (or is stable) over the 150 steps — loss does not diverge
   4. The optimizer emits a progress callback every 10 steps without raising a NaN error on any of the 15 checkpoints
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Test scaffolds + package stubs (RED state for encoder and optimizer)
+- [ ] 03-02-PLAN.md — Implement CLIPEncoder class (CLIP-01, CLIP-02)
+- [ ] 03-03-PLAN.md — Implement optimize() function + integration smoke test (OPT-01, OPT-02, OPT-03)
 
 ### Phase 4: ASR and Audio Preprocessing
 **Goal**: Developer can transcribe a spoken description from a microphone recording or WAV/MP3 file, with VRAM safely released before the optimization loop begins

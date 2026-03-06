@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-clip-encoder-and-latent-optimizer-02-PLAN.md
-last_updated: "2026-03-06T17:18:01.091Z"
+stopped_at: "Completed 03-clip-encoder-and-latent-optimizer-03-PLAN.md (checkpoint:human-verify pending)"
+last_updated: "2026-03-06T17:22:15.097Z"
 last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 50
 ---
 
@@ -56,6 +56,7 @@ Progress: [█████░░░░░] 50%
 | Phase 02-stylegan-human-generator P02 | 30 | 2 tasks | 1 files |
 | Phase 03-clip-encoder-and-latent-optimizer P01 | 2 | 2 tasks | 6 files |
 | Phase 03-clip-encoder-and-latent-optimizer P02 | 3 | 1 tasks | 1 files |
+| Phase 03-clip-encoder-and-latent-optimizer P03 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 03-clip-encoder-and-latent-optimizer]: jit=False required on clip.load() — JIT-compiled model prevents weight access and float32 casting during encode
 - [Phase 03-clip-encoder-and-latent-optimizer]: CLIP weights frozen immediately after load (requires_grad_(False)) — FP16 params would produce NaN under gradient updates
 - [Phase 03-clip-encoder-and-latent-optimizer]: F.normalize applied explicitly on every encode path — CLIP encode_text/encode_image return unnormalized embeddings
+- [Phase 03-clip-encoder-and-latent-optimizer]: wrapper.G.synthesis used in gradient path (not wrapper.synthesize) — uint8 conversion breaks gradient graph
+- [Phase 03-clip-encoder-and-latent-optimizer]: encoder.model.encode_image called inside grad context (CLIP weights frozen via requires_grad_(False)) — gradient flows through fwd pass to w
+- [Phase 03-clip-encoder-and-latent-optimizer]: NaN check placed before loss.backward() — calling backward on NaN raises or silently corrupts gradients
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T17:18:01.088Z
-Stopped at: Completed 03-clip-encoder-and-latent-optimizer-02-PLAN.md
+Last session: 2026-03-06T17:22:15.094Z
+Stopped at: Completed 03-clip-encoder-and-latent-optimizer-03-PLAN.md (checkpoint:human-verify pending)
 Resume file: None

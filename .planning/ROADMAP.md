@@ -30,7 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. The validation script reports whether CUDA is available, selects fp16 vs fp32 mode, and prints the correct resolution (1024px GPU / 256px CPU)
   3. All directories listed in the repo scaffold exist with .gitkeep placeholders (asr/, encoder/, generator/, optimizer/, ui/, utils/, outputs/, StyleGAN-Human/pretrained_models/, data/human_faces/)
   4. `pip check` reports no dependency conflicts after installing requirements_extra.txt on top of the StyleGAN-Human base conda env
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Write requirements_extra.txt, create repo scaffold, install deps into stylehuman env
+- [ ] 01-02-PLAN.md — Implement gpu_utils.py, validate_env.py, and pytest test suite
 
 ### Phase 2: StyleGAN-Human Generator
 **Goal**: Developer can call the generator wrapper with a W-space latent and receive a valid face image, on both GPU and CPU paths
@@ -91,7 +95,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Environment and Repo Scaffold | 0/? | Not started | - |
+| 1. Environment and Repo Scaffold | 1/2 | In Progress|  |
 | 2. StyleGAN-Human Generator | 0/? | Not started | - |
 | 3. CLIP Encoder and Latent Optimizer | 0/? | Not started | - |
 | 4. ASR and Audio Preprocessing | 0/? | Not started | - |

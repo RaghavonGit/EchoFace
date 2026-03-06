@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: planning
+stopped_at: Completed 01-01-PLAN.md — requirements_extra.txt, repo scaffold, conda env installs
+last_updated: "2026-03-06T04:04:56.155Z"
+last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
+progress:
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 1
+  percent: 50
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 0 of ? in current phase
 Status: Ready to plan
 Last activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-environment-and-repo-scaffold P01 | 6 | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -46,6 +63,9 @@ Recent decisions affecting current work:
 - [Phase 2]: StyleGAN pkl must be loaded via legacy.load_network_pkl(), not pickle.load() — raw pickle fails with AttributeError on dnnlib custom class references
 - [Phase 2]: Generator parameters must be frozen (requires_grad=False) — only W-space latent carries gradients during optimization
 - [Phase 4]: Whisper must lazy-load and unload before optimization begins — VRAM budget on smaller GPUs cannot hold both Whisper medium and StyleGAN-Human simultaneously
+- [Phase 01-environment-and-repo-scaffold]: tiktoken pinned to 0.5.2 immediately after openai-whisper to override 0.7.0 that whisper resolved — Python 3.8 wheel guard
+- [Phase 01-environment-and-repo-scaffold]: gradio pinned >=3.40,<4.0 (resolved to 3.50.2, downgraded from 4.44.1) — Gradio 4.x uses Python 3.10+ syntax, crashes on import in Python 3.8.5
+- [Phase 01-environment-and-repo-scaffold]: numpy capped to <1.24 as final install step (resolved to 1.23.5, downgraded from 1.24.4) — 1.24 removed np.bool/np.int aliases used in StyleGAN-Human internals
 
 ### Pending Todos
 
@@ -58,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06
-Stopped at: Roadmap written, STATE.md initialized, REQUIREMENTS.md traceability already populated — ready to plan Phase 1
+Last session: 2026-03-06T04:04:56.152Z
+Stopped at: Completed 01-01-PLAN.md — requirements_extra.txt, repo scaffold, conda env installs
 Resume file: None

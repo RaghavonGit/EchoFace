@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-01-PLAN.md — StyleGANWrapper scaffold and GEN-01 implementation
-last_updated: "2026-03-06T12:00:58.328Z"
+stopped_at: Completed 02-02-PLAN.md — GPU and CPU synthesis paths, visual checkpoint approved
+last_updated: "2026-03-06T12:20:08.626Z"
 last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 50
 ---
 
@@ -53,6 +53,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01-environment-and-repo-scaffold P01 | 6 | 3 tasks | 10 files |
 | Phase 01-environment-and-repo-scaffold P02 | 4 | 3 tasks | 5 files |
 | Phase 02-stylegan-human-generator P01 | 3 | 2 tasks | 4 files |
+| Phase 02-stylegan-human-generator P02 | 30 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - [Phase 01-environment-and-repo-scaffold]: dtype in gpu_utils controls W-space latent and Adam optimizer dtype only; StyleGAN synthesis stays float32 (generate.py force_fp32=True)
 - [Phase 02-stylegan-human-generator]: StyleGAN-Human sys.path injected at module level before dnnlib/legacy import
 - [Phase 02-stylegan-human-generator]: Test mocks patch generator.stylegan_wrapper namespace bindings rather than top-level modules
+- [Phase 02-stylegan-human-generator]: StyleGAN-Human v2 native synthesis output is portrait 512x1024, not square 1024x1024 — GPU test assertion corrected accordingly
+- [Phase 02-stylegan-human-generator]: PIL Image must be explicitly closed before tempdir cleanup on Windows to avoid PermissionError file-locking
+- [Phase 02-stylegan-human-generator]: Patch generator.stylegan_wrapper namespace bindings (not top-level modules) for correct mock interception in CPU tests
 
 ### Pending Todos
 
@@ -84,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T12:00:58.326Z
-Stopped at: Completed 02-01-PLAN.md — StyleGANWrapper scaffold and GEN-01 implementation
+Last session: 2026-03-06T12:20:08.622Z
+Stopped at: Completed 02-02-PLAN.md — GPU and CPU synthesis paths, visual checkpoint approved
 Resume file: None

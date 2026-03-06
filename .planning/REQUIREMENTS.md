@@ -28,8 +28,8 @@
 ### Generator
 
 - [x] **GEN-01**: stylegan_wrapper.py loads stylegan_human_v2_1024.pkl using legacy.load_network_pkl() (not raw pickle.load()), exposes W-space synthesis via G.synthesis(w, noise_mode='const')
-- [ ] **GEN-02**: Generator runs fp16 inference on CUDA-enabled GPU producing 1024x1024px output
-- [ ] **GEN-03**: Generator falls back to CPU with truncation=0.5 and 256x256px resolution when CUDA is unavailable
+- [x] **GEN-02**: Generator runs fp16 inference on CUDA-enabled GPU producing 1024x1024px output
+- [x] **GEN-03**: Generator falls back to CPU with truncation=0.5 and 256x256px resolution when CUDA is unavailable
 
 ### Optimizer
 
@@ -91,8 +91,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENV-03 | Phase 1 | Complete |
 | ENV-04 | Phase 1 | Complete |
 | GEN-01 | Phase 2 | Complete |
-| GEN-02 | Phase 2 | Pending |
-| GEN-03 | Phase 2 | Pending |
+| GEN-02 | Phase 2 | Complete |
+| GEN-03 | Phase 2 | Complete |
 | OPT-01 | Phase 3 | Pending |
 | OPT-02 | Phase 3 | Pending |
 | OPT-03 | Phase 3 | Pending |

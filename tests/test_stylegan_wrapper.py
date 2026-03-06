@@ -1,3 +1,4 @@
+import os
 import pytest
 import torch
 from unittest.mock import patch, MagicMock, call
@@ -148,13 +149,33 @@ class TestStyleGANWrapper:
     # GEN-02: GPU path — skip if CUDA unavailable
     # -------------------------------------------------------------------------
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="No CUDA")
     def test_gpu_sample_w_shape(self):
         """GEN-02: sample_w() returns tensor shape [1, num_ws, 512] on CUDA device."""
-        pytest.skip("not implemented")
+        import gpu_utils
+        from generator.stylegan_wrapper import StyleGANWrapper
+        cfg = gpu_utils.get_device_config()
+        pkl = "StyleGAN-Human/pretrained_models/stylegan_human_v2_1024.pkl"
+        wrapper = StyleGANWrapper(pkl, cfg)
+        w = wrapper.sample_w()
+        assert w.shape[0] == 1
+        assert w.shape[2] == 512
+        assert w.device.type == 'cuda'
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="No CUDA")
     def test_gpu_generates_1024_png(self):
         """GEN-02: generate_and_save() writes a valid PIL-openable 1024x1024 PNG to outputs/."""
-        pytest.skip("not implemented")
+        import gpu_utils
+        from PIL import Image
+        from generator.stylegan_wrapper import StyleGANWrapper
+        cfg = gpu_utils.get_device_config()
+        pkl = "StyleGAN-Human/pretrained_models/stylegan_human_v2_1024.pkl"
+        wrapper = StyleGANWrapper(pkl, cfg)
+        path = wrapper.generate_and_save()
+        assert os.path.exists(path)
+        img = Image.open(path)
+        # StyleGAN-Human v2 1024 generates portrait images (512 wide x 1024 tall)
+        assert img.size == (512, 1024)
 
     # -------------------------------------------------------------------------
     # GEN-03: CPU path — mock G.synthesis to return [1, 3, 1024, 1024] float tensor
@@ -162,8 +183,75 @@ class TestStyleGANWrapper:
 
     def test_cpu_resize_to_256(self):
         """GEN-03: synthesize() output is 256x256 when cfg['resolution']=256."""
-        pytest.skip("not implemented")
+        from unittest.mock import MagicMock
+        from generator.stylegan_wrapper import StyleGANWrapper
+
+        cpu_cfg = {
+            'device': torch.device('cpu'),
+            'dtype': torch.float32,
+            'use_fp16': False,
+            'resolution': 256,
+            'truncation_psi': 0.5,
+        }
+        pkl = "StyleGAN-Human/pretrained_models/stylegan_human_v2_1024.pkl"
+
+        with patch('generator.stylegan_wrapper.dnnlib.util.open_url') as mock_url, \
+             patch('generator.stylegan_wrapper.legacy.load_network_pkl') as mock_load:
+            mock_G = MagicMock()
+            mock_G.parameters.return_value = []
+            # synthesis returns [1, 3, 1024, 1024] float32 — native model output shape
+            mock_G.synthesis.return_value = torch.zeros(1, 3, 1024, 1024, dtype=torch.float32)
+            mock_G.eval.return_value = mock_G
+            mock_G.to.return_value = mock_G
+            mock_load.return_value = {'G_ema': mock_G}
+            cm = MagicMock()
+            cm.__enter__ = MagicMock(return_value=cm)
+            cm.__exit__ = MagicMock(return_value=False)
+            mock_url.return_value = cm
+
+            wrapper = StyleGANWrapper(pkl, cpu_cfg)
+            w = torch.zeros(1, 18, 512)
+            result = wrapper.synthesize(w)
+
+        assert result.shape == (256, 256, 3), f"Expected (256,256,3), got {result.shape}"
 
     def test_cpu_generates_256_png(self):
         """GEN-03: generate_and_save() writes a valid 256x256 PNG without error."""
-        pytest.skip("not implemented")
+        import tempfile
+        from unittest.mock import MagicMock
+        from PIL import Image
+        from generator.stylegan_wrapper import StyleGANWrapper
+
+        cpu_cfg = {
+            'device': torch.device('cpu'),
+            'dtype': torch.float32,
+            'use_fp16': False,
+            'resolution': 256,
+            'truncation_psi': 0.5,
+        }
+        pkl = "StyleGAN-Human/pretrained_models/stylegan_human_v2_1024.pkl"
+
+        with patch('generator.stylegan_wrapper.dnnlib.util.open_url') as mock_url, \
+             patch('generator.stylegan_wrapper.legacy.load_network_pkl') as mock_load:
+            mock_G = MagicMock()
+            mock_G.z_dim = 512
+            mock_G.c_dim = 0
+            mock_G.num_ws = 18
+            mock_G.parameters.return_value = []
+            mock_G.synthesis.return_value = torch.zeros(1, 3, 1024, 1024, dtype=torch.float32)
+            mock_G.mapping.return_value = torch.zeros(1, 18, 512)
+            mock_G.eval.return_value = mock_G
+            mock_G.to.return_value = mock_G
+            mock_load.return_value = {'G_ema': mock_G}
+            cm = MagicMock()
+            cm.__enter__ = MagicMock(return_value=cm)
+            cm.__exit__ = MagicMock(return_value=False)
+            mock_url.return_value = cm
+
+            wrapper = StyleGANWrapper(pkl, cpu_cfg)
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                path = wrapper.generate_and_save(out_dir=tmp_dir)
+                assert os.path.exists(path)
+                with Image.open(path) as img:
+                    size = img.size
+                assert size == (256, 256)

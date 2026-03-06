@@ -21,8 +21,8 @@
 
 ### CLIP Encoder
 
-- [ ] **CLIP-01**: clip_encoder.py loads CLIP ViT-B/32 locally (no API key, no openai Python SDK), encodes text descriptions into normalized embeddings
-- [ ] **CLIP-02**: clip_encoder.py encodes generated images into CLIP image embeddings for use in optimization loss computation
+- [x] **CLIP-01**: clip_encoder.py loads CLIP ViT-B/32 locally (no API key, no openai Python SDK), encodes text descriptions into normalized embeddings
+- [x] **CLIP-02**: clip_encoder.py encodes generated images into CLIP image embeddings for use in optimization loss computation
 - [ ] **CLIP-03**: User can see a live cosine similarity score between their text description and the current generated image, updated after optimization completes
 
 ### Generator
@@ -33,9 +33,9 @@
 
 ### Optimizer
 
-- [ ] **OPT-01**: Optimizer samples w_init from Gaussian distribution in W-space as the starting latent for each generation
-- [ ] **OPT-02**: clip_optimizer.py runs 150-step gradient descent on W-space latent: L_total = -Sim(E_text, E_image) + λ||w - w_init||² (λ=0.1, lr=0.01), with StyleGAN generator parameters frozen (requires_grad=False)
-- [ ] **OPT-03**: Optimizer applies gradient clipping and NaN detection/recovery to prevent optimization instability (CLIP cosine loss can explode within 5 steps without this)
+- [x] **OPT-01**: Optimizer samples w_init from Gaussian distribution in W-space as the starting latent for each generation
+- [x] **OPT-02**: clip_optimizer.py runs 150-step gradient descent on W-space latent: L_total = -Sim(E_text, E_image) + λ||w - w_init||² (λ=0.1, lr=0.01), with StyleGAN generator parameters frozen (requires_grad=False)
+- [x] **OPT-03**: Optimizer applies gradient clipping and NaN detection/recovery to prevent optimization instability (CLIP cosine loss can explode within 5 steps without this)
 
 ### Dataset
 
@@ -93,11 +93,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GEN-01 | Phase 2 | Complete |
 | GEN-02 | Phase 2 | Complete |
 | GEN-03 | Phase 2 | Complete |
-| OPT-01 | Phase 3 | Pending |
-| OPT-02 | Phase 3 | Pending |
-| OPT-03 | Phase 3 | Pending |
-| CLIP-01 | Phase 3 | Pending |
-| CLIP-02 | Phase 3 | Pending |
+| OPT-01 | Phase 3 | Complete |
+| OPT-02 | Phase 3 | Complete |
+| OPT-03 | Phase 3 | Complete |
+| CLIP-01 | Phase 3 | Complete |
+| CLIP-02 | Phase 3 | Complete |
 | ASR-01 | Phase 4 | Pending |
 | ASR-02 | Phase 4 | Pending |
 | ASR-03 | Phase 4 | Pending |

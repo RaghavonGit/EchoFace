@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-clip-encoder-and-latent-optimizer-01-PLAN.md
-last_updated: "2026-03-06T17:12:48.713Z"
+stopped_at: Completed 03-clip-encoder-and-latent-optimizer-02-PLAN.md
+last_updated: "2026-03-06T17:18:01.091Z"
 last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 50
 ---
 
@@ -55,6 +55,7 @@ Progress: [█████░░░░░] 50%
 | Phase 02-stylegan-human-generator P01 | 3 | 2 tasks | 4 files |
 | Phase 02-stylegan-human-generator P02 | 30 | 2 tasks | 1 files |
 | Phase 03-clip-encoder-and-latent-optimizer P01 | 2 | 2 tasks | 6 files |
+| Phase 03-clip-encoder-and-latent-optimizer P02 | 3 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting current work:
 - [Phase 02-stylegan-human-generator]: Patch generator.stylegan_wrapper namespace bindings (not top-level modules) for correct mock interception in CPU tests
 - [Phase 03-clip-encoder-and-latent-optimizer]: Stub files import clip/CLIPEncoder at module level even with NotImplementedError body — patch() requires name in namespace
 - [Phase 03-clip-encoder-and-latent-optimizer]: test_runs_150_steps uses encode_image call_count as step proxy (called once per optimization step in gradient path)
+- [Phase 03-clip-encoder-and-latent-optimizer]: jit=False required on clip.load() — JIT-compiled model prevents weight access and float32 casting during encode
+- [Phase 03-clip-encoder-and-latent-optimizer]: CLIP weights frozen immediately after load (requires_grad_(False)) — FP16 params would produce NaN under gradient updates
+- [Phase 03-clip-encoder-and-latent-optimizer]: F.normalize applied explicitly on every encode path — CLIP encode_text/encode_image return unnormalized embeddings
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T17:12:48.710Z
-Stopped at: Completed 03-clip-encoder-and-latent-optimizer-01-PLAN.md
+Last session: 2026-03-06T17:18:01.088Z
+Stopped at: Completed 03-clip-encoder-and-latent-optimizer-02-PLAN.md
 Resume file: None

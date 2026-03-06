@@ -1,0 +1,5 @@
+ori_model.txt
+__pycache__/
+*.pyc
+.pytest_cache/
+outputs/*.png

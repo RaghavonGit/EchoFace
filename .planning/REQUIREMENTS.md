@@ -7,10 +7,10 @@
 
 ### Environment
 
-- [ ] **ENV-01**: Developer can run a validation script that confirms all extra dependencies install cleanly on Python 3.8.5 / PyTorch 1.9.1 / CUDA 11.1 base environment
+- [x] **ENV-01**: Developer can run a validation script that confirms all extra dependencies install cleanly on Python 3.8.5 / PyTorch 1.9.1 / CUDA 11.1 base environment
 - [x] **ENV-02**: Repository contains full directory scaffold (asr/, encoder/, generator/, optimizer/, ui/, utils/, outputs/, StyleGAN-Human/pretrained_models/, data/human_faces/) with .gitkeep placeholders
 - [x] **ENV-03**: requirements_extra.txt with pinned versions (gradio>=3.40,<4.0, openai-whisper, CLIP from GitHub, librosa==0.9.2, tiktoken==0.5.2, numpy<1.24, soundfile, pytorch-fid) is installable on top of StyleGAN-Human base conda env without conflicts
-- [ ] **ENV-04**: gpu_utils.py detects CUDA availability, selects fp16 vs fp32 mode, and returns correct resolution (1024px GPU / 256px CPU) and device string used by all downstream modules
+- [x] **ENV-04**: gpu_utils.py detects CUDA availability, selects fp16 vs fp32 mode, and returns correct resolution (1024px GPU / 256px CPU) and device string used by all downstream modules
 
 ### ASR
 
@@ -86,10 +86,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENV-01 | Phase 1 | Pending |
+| ENV-01 | Phase 1 | Complete |
 | ENV-02 | Phase 1 | Complete |
 | ENV-03 | Phase 1 | Complete |
-| ENV-04 | Phase 1 | Pending |
+| ENV-04 | Phase 1 | Complete |
 | GEN-01 | Phase 2 | Pending |
 | GEN-02 | Phase 2 | Pending |
 | GEN-03 | Phase 2 | Pending |

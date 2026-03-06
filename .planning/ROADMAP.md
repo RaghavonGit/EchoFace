@@ -44,7 +44,11 @@ Plans:
   1. `stylegan_wrapper.py` loads the .pkl using `legacy.load_network_pkl()` without errors (no raw pickle.load)
   2. Calling the wrapper with a random W-space sample on a CUDA GPU produces a 1024x1024px PNG saved to outputs/
   3. Calling the wrapper with CUDA unavailable falls back to CPU, produces a 256x256px PNG with truncation=0.5, and exits without error
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Create test scaffold, generator package, and implement StyleGANWrapper loading/freezing (GEN-01)
+- [ ] 02-02-PLAN.md — Implement GPU and CPU synthesis paths, integration test, visual checkpoint (GEN-02, GEN-03)
 
 ### Phase 3: CLIP Encoder and Latent Optimizer
 **Goal**: A hardcoded text prompt drives a 150-step CLIP-guided W-space optimization that produces a face visually aligned with the prompt, with stable loss and no NaN failures
@@ -96,7 +100,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Environment and Repo Scaffold | 2/2 | Complete    | 2026-03-06 |
-| 2. StyleGAN-Human Generator | 0/? | Not started | - |
+| 2. StyleGAN-Human Generator | 0/2 | Planned     | - |
 | 3. CLIP Encoder and Latent Optimizer | 0/? | Not started | - |
 | 4. ASR and Audio Preprocessing | 0/? | Not started | - |
 | 5. Dataset Utilities and Evaluation | 0/? | Not started | - |

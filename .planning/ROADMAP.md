@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Environment and Repo Scaffold** - Verified conda environment and directory structure ready for ML code (completed 2026-03-06)
 - [x] **Phase 2: StyleGAN-Human Generator** - Generator loads, synthesizes, and saves a face from a random W-space sample (completed 2026-03-06)
 - [x] **Phase 3: CLIP Encoder and Latent Optimizer** - CLIP-guided 150-step W-space optimization loop producing semantically aligned faces (completed 2026-03-06)
-- [x] **Phase 4: ASR and Audio Preprocessing** - Whisper transcribes mic and file input to text with VRAM-safe sequencing (completed 2026-03-07)
+- [x] **Phase 4: ASR and Audio Preprocessing** - Whisper transcribes mic and file input to text with VRAM-safe sequencing (completed 2026-03-07)
 - [ ] **Phase 5: Dataset Utilities and Evaluation** - Dataset loader and FID scorer operational with Kaggle Human Faces dataset
 - [ ] **Phase 6: Gradio UI Integration** - Full localhost pipeline: speak a description, receive a face, export PNG
 
@@ -88,7 +88,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `utils/dataset_loader.py` loads images from `data/human_faces/` when the directory is populated, and prints a clear error message (not a traceback) when the directory is missing or empty
   2. `utils/metrics.py` computes and prints a FID score between the generated outputs and the real dataset images using pytorch-fid, asserting at least 2048 real images before running
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Test scaffolds + module stubs (RED state for dataset_loader and metrics)
+- [ ] 05-02-PLAN.md — Implement load_dataset() and compute_fid() — turn 9 tests GREEN (DATA-01, EVAL-01)
 
 ### Phase 6: Gradio UI Integration
 **Goal**: A developer clones the repo, activates the conda env, runs `python ui/app.py`, and can speak a face description, watch the pipeline run, see a live CLIP similarity score, and export the result as PNG — all on localhost with no internet connection
@@ -112,5 +116,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. StyleGAN-Human Generator | 2/2 | Complete   | 2026-03-06 |
 | 3. CLIP Encoder and Latent Optimizer | 3/3 | Complete    | 2026-03-06 |
 | 4. ASR and Audio Preprocessing | 2/2 | Complete   | 2026-03-07 |
-| 5. Dataset Utilities and Evaluation | 0/? | Not started | - |
+| 5. Dataset Utilities and Evaluation | 0/2 | Not started | - |
 | 6. Gradio UI Integration | 0/? | Not started | - |

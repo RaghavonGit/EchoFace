@@ -39,11 +39,11 @@
 
 ### Dataset
 
-- [ ] **DATA-01**: utils/dataset_loader.py loads and preprocesses images from data/human_faces/ (Kaggle Human Faces Dataset), handles missing dataset directory gracefully with a clear error message
+- [x] **DATA-01**: utils/dataset_loader.py loads and preprocesses images from data/human_faces/ (Kaggle Human Faces Dataset), handles missing dataset directory gracefully with a clear error message
 
 ### Evaluation
 
-- [ ] **EVAL-01**: utils/metrics.py computes FID score between generated face outputs and the Kaggle Human Faces dataset real image distribution using pytorch-fid
+- [x] **EVAL-01**: utils/metrics.py computes FID score between generated face outputs and the Kaggle Human Faces dataset real image distribution using pytorch-fid
 
 ### UI
 
@@ -102,8 +102,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ASR-02 | Phase 4 | Complete |
 | ASR-03 | Phase 4 | Complete |
 | ASR-04 | Phase 4 | Complete |
-| DATA-01 | Phase 5 | Pending |
-| EVAL-01 | Phase 5 | Pending |
+| DATA-01 | Phase 5 | Complete |
+| EVAL-01 | Phase 5 | Complete |
 | UI-01 | Phase 6 | Pending |
 | UI-02 | Phase 6 | Pending |
 | CLIP-03 | Phase 6 | Pending |

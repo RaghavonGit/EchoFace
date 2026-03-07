@@ -116,5 +116,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. StyleGAN-Human Generator | 2/2 | Complete   | 2026-03-06 |
 | 3. CLIP Encoder and Latent Optimizer | 3/3 | Complete    | 2026-03-06 |
 | 4. ASR and Audio Preprocessing | 2/2 | Complete   | 2026-03-07 |
-| 5. Dataset Utilities and Evaluation | 0/2 | Not started | - |
+| 5. Dataset Utilities and Evaluation | 1/2 | In Progress|  |
 | 6. Gradio UI Integration | 0/? | Not started | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 04-asr-and-audio-preprocessing-01-PLAN.md
-last_updated: "2026-03-07T10:37:24.151Z"
+stopped_at: Completed 05-dataset-utilities-and-evaluation-01-PLAN.md
+last_updated: "2026-03-07T13:25:06.604Z"
 last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
   percent: 50
 ---
 
@@ -59,6 +59,7 @@ Progress: [█████░░░░░] 50%
 | Phase 03-clip-encoder-and-latent-optimizer P03 | 2 | 1 tasks | 1 files |
 | Phase 04-asr-and-audio-preprocessing P02 | 5 | 2 tasks | 2 files |
 | Phase 04-asr-and-audio-preprocessing P01 | 5 | 2 tasks | 3 files |
+| Phase 05-dataset-utilities-and-evaluation P01 | 448 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,7 @@ Recent decisions affecting current work:
 - [Phase 04-asr-and-audio-preprocessing]: ASR-04 bypass is absence of transcribe() call — contract test verifies pipeline logic, not Transcriber code
 - [Phase 04-asr-and-audio-preprocessing]: process_audio() is stateless pure function — no class, no cfg dict, downstream caller owns file path
 - [Phase 04-asr-and-audio-preprocessing]: Silence guard threshold 1e-6: audio below this amplitude is returned unnormalized to prevent NaN
+- [Phase 05-dataset-utilities-and-evaluation]: gpu_utils imported as top-level module (import gpu_utils) not utils.gpu_utils — gpu_utils.py lives at project root, not inside utils/
 
 ### Pending Todos
 
@@ -106,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T10:32:39.068Z
-Stopped at: Completed 04-asr-and-audio-preprocessing-01-PLAN.md
+Last session: 2026-03-07T13:25:06.601Z
+Stopped at: Completed 05-dataset-utilities-and-evaluation-01-PLAN.md
 Resume file: None

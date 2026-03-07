@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: StyleGAN-Human Generator** - Generator loads, synthesizes, and saves a face from a random W-space sample (completed 2026-03-06)
 - [x] **Phase 3: CLIP Encoder and Latent Optimizer** - CLIP-guided 150-step W-space optimization loop producing semantically aligned faces (completed 2026-03-06)
 - [x] **Phase 4: ASR and Audio Preprocessing** - Whisper transcribes mic and file input to text with VRAM-safe sequencing (completed 2026-03-07)
-- [x] **Phase 5: Dataset Utilities and Evaluation** - Dataset loader and FID scorer operational with Kaggle Human Faces dataset (completed 2026-03-07)
+- [x] **Phase 5: Dataset Utilities and Evaluation** - Dataset loader and FID scorer operational with Kaggle Human Faces dataset (completed 2026-03-07)
 - [ ] **Phase 6: Gradio UI Integration** - Full localhost pipeline: speak a description, receive a face, export PNG
 
 ## Phase Details
@@ -103,7 +103,12 @@ Plans:
   2. After optimization completes, the UI displays the cosine similarity score between the typed/transcribed description and the generated face image
   3. User can click an export button and receive a timestamped PNG file saved to outputs/
   4. The full pipeline runs end-to-end — speech input to generated face image displayed in the UI — without any network call after model weights are cached
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — RED test scaffold: 8 failing tests for generate_fn and export_image (UI-01, UI-02, CLIP-03)
+- [ ] 06-02-PLAN.md — Implement ui/app.py: generate_fn, export_image, Blocks layout, queue+launch — turn 8 tests GREEN
+- [ ] 06-03-PLAN.md — Human-verify checkpoint: full end-to-end pipeline in browser
 
 ## Progress
 
@@ -117,4 +122,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. CLIP Encoder and Latent Optimizer | 3/3 | Complete    | 2026-03-06 |
 | 4. ASR and Audio Preprocessing | 2/2 | Complete   | 2026-03-07 |
 | 5. Dataset Utilities and Evaluation | 2/2 | Complete   | 2026-03-07 |
-| 6. Gradio UI Integration | 0/? | Not started | - |
+| 6. Gradio UI Integration | 0/3 | Not started | - |

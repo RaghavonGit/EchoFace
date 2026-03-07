@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-07T06:01:01.156Z"
+stopped_at: Completed 04-asr-and-audio-preprocessing-01-PLAN.md
+last_updated: "2026-03-07T10:32:39.071Z"
 last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 9
   percent: 50
 ---
 
@@ -57,6 +57,8 @@ Progress: [█████░░░░░] 50%
 | Phase 03-clip-encoder-and-latent-optimizer P01 | 2 | 2 tasks | 6 files |
 | Phase 03-clip-encoder-and-latent-optimizer P02 | 3 | 1 tasks | 1 files |
 | Phase 03-clip-encoder-and-latent-optimizer P03 | 2 | 1 tasks | 1 files |
+| Phase 04-asr-and-audio-preprocessing P02 | 5 | 2 tasks | 2 files |
+| Phase 04-asr-and-audio-preprocessing P01 | 5 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -87,6 +89,11 @@ Recent decisions affecting current work:
 - [Phase 03-clip-encoder-and-latent-optimizer]: wrapper.G.synthesis used in gradient path (not wrapper.synthesize) — uint8 conversion breaks gradient graph
 - [Phase 03-clip-encoder-and-latent-optimizer]: encoder.model.encode_image called inside grad context (CLIP weights frozen via requires_grad_(False)) — gradient flows through fwd pass to w
 - [Phase 03-clip-encoder-and-latent-optimizer]: NaN check placed before loss.backward() — calling backward on NaN raises or silently corrupts gradients
+- [Phase 04-asr-and-audio-preprocessing]: Whisper load_model takes str device arg — str(cfg['device']) in Transcriber.__init__
+- [Phase 04-asr-and-audio-preprocessing]: Stub must import whisper at module level even with NotImplementedError body — @patch requires name in namespace
+- [Phase 04-asr-and-audio-preprocessing]: ASR-04 bypass is absence of transcribe() call — contract test verifies pipeline logic, not Transcriber code
+- [Phase 04-asr-and-audio-preprocessing]: process_audio() is stateless pure function — no class, no cfg dict, downstream caller owns file path
+- [Phase 04-asr-and-audio-preprocessing]: Silence guard threshold 1e-6: audio below this amplitude is returned unnormalized to prevent NaN
 
 ### Pending Todos
 
@@ -99,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T06:01:01.152Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-asr-and-audio-preprocessing/04-CONTEXT.md
+Last session: 2026-03-07T10:32:39.068Z
+Stopped at: Completed 04-asr-and-audio-preprocessing-01-PLAN.md
+Resume file: None

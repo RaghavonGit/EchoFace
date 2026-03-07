@@ -23,8 +23,10 @@ class TestProcessAudio(unittest.TestCase):
         process_audio("dummy.wav")
         mock_librosa.effects.trim.assert_called_once()
         call_kwargs = mock_librosa.effects.trim.call_args
-        # top_db=20 must be passed
-        self.assertIn(20, call_kwargs.args or list(call_kwargs.kwargs.values()))
+        # top_db=20 must be passed — check kwargs first, then scalar positional args
+        kwargs_values = list(call_kwargs.kwargs.values())
+        scalar_args = [a for a in call_kwargs.args if not isinstance(a, np.ndarray)]
+        self.assertIn(20, kwargs_values + scalar_args)
 
     @patch('asr.audio_processor.librosa')
     def test_peak_normalize(self, mock_librosa):

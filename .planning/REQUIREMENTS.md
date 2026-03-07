@@ -23,7 +23,7 @@
 
 - [x] **CLIP-01**: clip_encoder.py loads CLIP ViT-B/32 locally (no API key, no openai Python SDK), encodes text descriptions into normalized embeddings
 - [x] **CLIP-02**: clip_encoder.py encodes generated images into CLIP image embeddings for use in optimization loss computation
-- [ ] **CLIP-03**: User can see a live cosine similarity score between their text description and the current generated image, updated after optimization completes
+- [x] **CLIP-03**: User can see a live cosine similarity score between their text description and the current generated image, updated after optimization completes
 
 ### Generator
 
@@ -47,8 +47,8 @@
 
 ### UI
 
-- [ ] **UI-01**: gradio_app.py runs on localhost with an input panel containing a mic record button, text description override box, and .wav/.mp3 file upload — all wired to the ASR + generation pipeline
-- [ ] **UI-02**: User can export the final generated image as a PNG file via an export button in the Gradio UI
+- [x] **UI-01**: gradio_app.py runs on localhost with an input panel containing a mic record button, text description override box, and .wav/.mp3 file upload — all wired to the ASR + generation pipeline
+- [x] **UI-02**: User can export the final generated image as a PNG file via an export button in the Gradio UI
 
 ## v2 Requirements
 
@@ -104,9 +104,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ASR-04 | Phase 4 | Complete |
 | DATA-01 | Phase 5 | Complete |
 | EVAL-01 | Phase 5 | Complete |
-| UI-01 | Phase 6 | Pending |
-| UI-02 | Phase 6 | Pending |
-| CLIP-03 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Complete |
+| UI-02 | Phase 6 | Complete |
+| CLIP-03 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total

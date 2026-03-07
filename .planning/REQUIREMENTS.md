@@ -14,9 +14,9 @@
 
 ### ASR
 
-- [ ] **ASR-01**: audio_processor.py applies noise filtering, amplitude normalization, and silence trimming to input audio using librosa + soundfile, outputting 16kHz mono float32 array
+- [x] **ASR-01**: audio_processor.py applies noise filtering, amplitude normalization, and silence trimming to input audio using librosa + soundfile, outputting 16kHz mono float32 array
 - [x] **ASR-02**: transcriber.py loads Whisper medium model locally (no API key), transcribes preprocessed audio to text, and implements lazy load + unload to free VRAM before optimization begins
-- [ ] **ASR-03**: User can provide audio via real-time microphone recording or .wav/.mp3 file upload; both paths are resampled to 16kHz mono before transcription
+- [x] **ASR-03**: User can provide audio via real-time microphone recording or .wav/.mp3 file upload; both paths are resampled to 16kHz mono before transcription
 - [x] **ASR-04**: User can type a text description directly to bypass ASR entirely when audio quality is insufficient
 
 ### CLIP Encoder
@@ -98,9 +98,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPT-03 | Phase 3 | Complete |
 | CLIP-01 | Phase 3 | Complete |
 | CLIP-02 | Phase 3 | Complete |
-| ASR-01 | Phase 4 | Pending |
+| ASR-01 | Phase 4 | Complete |
 | ASR-02 | Phase 4 | Complete |
-| ASR-03 | Phase 4 | Pending |
+| ASR-03 | Phase 4 | Complete |
 | ASR-04 | Phase 4 | Complete |
 | DATA-01 | Phase 5 | Pending |
 | EVAL-01 | Phase 5 | Pending |

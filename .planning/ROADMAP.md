@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Environment and Repo Scaffold** - Verified conda environment and directory structure ready for ML code (completed 2026-03-06)
 - [x] **Phase 2: StyleGAN-Human Generator** - Generator loads, synthesizes, and saves a face from a random W-space sample (completed 2026-03-06)
-- [x] **Phase 3: CLIP Encoder and Latent Optimizer** - CLIP-guided 150-step W-space optimization loop producing semantically aligned faces (completed 2026-03-06)
+- [x] **Phase 3: CLIP Encoder and Latent Optimizer** - CLIP-guided 150-step W-space optimization loop producing semantically aligned faces (completed 2026-03-06)
 - [ ] **Phase 4: ASR and Audio Preprocessing** - Whisper transcribes mic and file input to text with VRAM-safe sequencing
 - [ ] **Phase 5: Dataset Utilities and Evaluation** - Dataset loader and FID scorer operational with Kaggle Human Faces dataset
 - [ ] **Phase 6: Gradio UI Integration** - Full localhost pipeline: speak a description, receive a face, export PNG
@@ -75,7 +75,11 @@ Plans:
   2. `transcriber.py` transcribes a known spoken phrase from the preprocessed array using the local Whisper medium model with no API key
   3. After transcription completes, Whisper model weights are unloaded from VRAM before the optimizer is invoked (verified by inspecting GPU memory between the two calls)
   4. A user can bypass ASR entirely by typing a text description directly, and the pipeline proceeds identically from that text
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — process_audio() function: test scaffold + implementation (ASR-01, ASR-03)
+- [ ] 04-02-PLAN.md — Transcriber class: test scaffold + implementation with VRAM lifecycle (ASR-02, ASR-04)
 
 ### Phase 5: Dataset Utilities and Evaluation
 **Goal**: Developer can load the Kaggle Human Faces dataset and compute a FID score against a set of generated outputs, with graceful error messages when the dataset is absent
@@ -107,6 +111,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Environment and Repo Scaffold | 2/2 | Complete    | 2026-03-06 |
 | 2. StyleGAN-Human Generator | 2/2 | Complete   | 2026-03-06 |
 | 3. CLIP Encoder and Latent Optimizer | 3/3 | Complete    | 2026-03-06 |
-| 4. ASR and Audio Preprocessing | 0/? | Not started | - |
+| 4. ASR and Audio Preprocessing | 0/2 | Not started | - |
 | 5. Dataset Utilities and Evaluation | 0/? | Not started | - |
 | 6. Gradio UI Integration | 0/? | Not started | - |

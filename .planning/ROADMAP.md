@@ -122,4 +122,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. CLIP Encoder and Latent Optimizer | 3/3 | Complete    | 2026-03-06 |
 | 4. ASR and Audio Preprocessing | 2/2 | Complete   | 2026-03-07 |
 | 5. Dataset Utilities and Evaluation | 2/2 | Complete   | 2026-03-07 |
-| 6. Gradio UI Integration | 0/3 | Not started | - |
+| 6. Gradio UI Integration | 2/3 | In Progress|  |

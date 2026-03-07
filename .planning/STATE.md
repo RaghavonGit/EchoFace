@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 05-dataset-utilities-and-evaluation-01-PLAN.md
-last_updated: "2026-03-07T13:25:06.604Z"
+stopped_at: Completed 05-dataset-utilities-and-evaluation-02-PLAN.md
+last_updated: "2026-03-07T13:31:40.557Z"
 last_activity: 2026-03-06 — Roadmap created, all 6 phases derived from 21 v1 requirements
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
   percent: 50
 ---
 
@@ -60,6 +60,7 @@ Progress: [█████░░░░░] 50%
 | Phase 04-asr-and-audio-preprocessing P02 | 5 | 2 tasks | 2 files |
 | Phase 04-asr-and-audio-preprocessing P01 | 5 | 2 tasks | 3 files |
 | Phase 05-dataset-utilities-and-evaluation P01 | 448 | 2 tasks | 4 files |
+| Phase 05-dataset-utilities-and-evaluation P02 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 04-asr-and-audio-preprocessing]: process_audio() is stateless pure function — no class, no cfg dict, downstream caller owns file path
 - [Phase 04-asr-and-audio-preprocessing]: Silence guard threshold 1e-6: audio below this amplitude is returned unnormalized to prevent NaN
 - [Phase 05-dataset-utilities-and-evaluation]: gpu_utils imported as top-level module (import gpu_utils) not utils.gpu_utils — gpu_utils.py lives at project root, not inside utils/
+- [Phase 05-dataset-utilities-and-evaluation]: sorted(key=str) in load_dataset() — MagicMock objects don't support < comparison; key=str provides stable sort for real paths and mocks alike
+- [Phase 05-dataset-utilities-and-evaluation]: sys.path injection in utils/metrics.py — enables direct CLI execution; follows same pattern as generator/stylegan_wrapper.py for project-root imports
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T13:25:06.601Z
-Stopped at: Completed 05-dataset-utilities-and-evaluation-01-PLAN.md
+Last session: 2026-03-07T13:31:40.553Z
+Stopped at: Completed 05-dataset-utilities-and-evaluation-02-PLAN.md
 Resume file: None

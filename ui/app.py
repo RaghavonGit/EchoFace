@@ -31,8 +31,12 @@ def _startup_notice(cfg):
     )
 
 
-def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
-    """Generator function wiring ASR + optimizer into a single Gradio event handler.
+def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg, gan_wrapper=None):
+    """Generator function wiring ASR + optimizer (or GAN) into a single Gradio event handler.
+
+    When gan_wrapper is provided, STAGE 3 uses the CLIP-conditioned FaceGAN
+    (instant single-pass inference) instead of the 150-step CLIP optimizer.
+    When gan_wrapper is None, falls back to the legacy optimize() path.
 
     Yield schema (6-element tuples):
       index 0: status_out  (str)
@@ -76,6 +80,40 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
         return  # STOP — do not call optimize(); user must click Generate again
 
     # STAGE 3 — Text bypass path (prompt is non-empty)
+
+    # ── Fast path: CLIP-conditioned FaceGAN (trained model) ───────────────────
+    if gan_wrapper is not None:
+        yield (
+            "Generating face...",
+            "",
+            "",
+            None,
+            None,
+            gr.update(visible=False),
+        )
+        try:
+            pil_image, final_sim = gan_wrapper.generate(prompt)
+        except Exception as exc:
+            yield (
+                f"Generation failed: {exc}",
+                "",
+                "",
+                None,
+                None,
+                gr.update(visible=False),
+            )
+            return
+        yield (
+            "Done.",
+            "",
+            f"CLIP similarity: {final_sim:.4f}",
+            np.array(pil_image),
+            pil_image,
+            gr.update(visible=True),
+        )
+        return
+
+    # ── Legacy path: 150-step CLIP latent optimisation ────────────────────────
     yield (
         "Starting optimization...",
         "",
@@ -160,17 +198,22 @@ def export_image(pil_image, outputs_dir=None):
     return (gr.update(visible=True), gr.update(visible=True, value=path))
 
 
-def _build_demo(wrapper, cfg):
+def _build_demo(wrapper, cfg, gan_wrapper=None):
     """Build and return the Gradio Blocks demo object.
 
     Separated from __main__ so tests can call it with mock wrapper/cfg
     without triggering pkl load.
+
+    Args:
+        wrapper:     StyleGANWrapper (used when gan_wrapper is None)
+        cfg:         device config dict
+        gan_wrapper: FaceGANWrapper (when available, used instead of optimize())
     """
     import functools
 
     startup_notice = _startup_notice(cfg)
 
-    gen = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg)
+    gen = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg, gan_wrapper=gan_wrapper)
     exp = functools.partial(export_image)
 
     with gr.Blocks(title="EchoFace") as demo:
@@ -217,14 +260,28 @@ def _build_demo(wrapper, cfg):
 
 if __name__ == "__main__":
     cfg = gpu_utils.get_device_config()
-    PKL_PATH = os.path.join(
-        PROJECT_ROOT,
-        "StyleGAN-Human",
-        "pretrained_models",
-        "stylegan_human_v2_1024.pkl",
-    )
-    wrapper = StyleGANWrapper(PKL_PATH, cfg)
-    demo = _build_demo(wrapper, cfg)
+
+    # ── Prefer FaceGAN if a trained checkpoint exists ─────────────────────────
+    GAN_CHECKPOINT = os.path.join(PROJECT_ROOT, "checkpoints", "face_gan", "gen_best.pth")
+    gan_wrapper = None
+    wrapper = None
+
+    if os.path.exists(GAN_CHECKPOINT):
+        from generator.face_gan_wrapper import FaceGANWrapper
+        print(f"[app] Loading FaceGANWrapper from {GAN_CHECKPOINT}")
+        gan_wrapper = FaceGANWrapper(GAN_CHECKPOINT, cfg)
+        print("[app] FaceGAN ready — using fast CLIP-conditioned generation")
+    else:
+        print("[app] No FaceGAN checkpoint found — using CLIP latent optimiser (StyleGAN-Human)")
+        PKL_PATH = os.path.join(
+            PROJECT_ROOT,
+            "StyleGAN-Human",
+            "pretrained_models",
+            "stylegan_human_v2_1024.pkl",
+        )
+        wrapper = StyleGANWrapper(PKL_PATH, cfg)
+
+    demo = _build_demo(wrapper, cfg, gan_wrapper=gan_wrapper)
     demo.queue(concurrency_count=1).launch(
         server_name="127.0.0.1", share=False, show_error=True
     )

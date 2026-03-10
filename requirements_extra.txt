@@ -1,19 +1,28 @@
-# EchoFace extra dependencies
-# Install on top of StyleGAN-Human base conda env (Python 3.8.5 / PyTorch 1.9.1 / CUDA 11.1)
-# Run from D:/EchoFace/ with: pip install -r requirements_extra.txt
-# Then verify: pip check
+# EchoFace — Python dependencies
+# Conda env: stylehuman (Python 3.8.x)
+# PyTorch + CUDA already installed via conda — do not reinstall here
+#
+# Install with:
+#   pip install -r requirements_extra.txt
 
-openai-whisper
-tiktoken==0.5.2
-clip @ git+https://github.com/openai/CLIP.git
-librosa==0.9.2
-sounddevice>=0.4.4
-soundfile>=0.10.3
-gradio>=3.40,<4.0
-pytorch-fid>=0.2.1
-numpy<1.24
-transformers==4.26.1
-torchvision
-diffusers==0.21.4
-accelerate
-huggingface-hub==0.22.2
+# ── ASR ───────────────────────────────────────────────────────────────────
+openai-whisper          # Local Whisper ASR (medium model, no API key)
+tiktoken==0.5.2         # Whisper tokenizer dependency
+
+# ── CLIP ──────────────────────────────────────────────────────────────────
+clip @ git+https://github.com/openai/CLIP.git   # Local CLIP ViT-B/32
+
+# ── Image / Vision ────────────────────────────────────────────────────────
+torchvision             # CLIP dependency; TVF used in styleclip_wrapper
+Pillow                  # PIL image handling throughout pipeline
+
+# ── Audio ─────────────────────────────────────────────────────────────────
+librosa==0.9.2          # Audio preprocessing (resample, trim, normalize)
+soundfile>=0.10.3       # Audio file I/O
+sounddevice>=0.4.4      # Microphone input for Gradio
+
+# ── UI ────────────────────────────────────────────────────────────────────
+gradio>=3.40,<4.0       # Gradio 4.x requires Python 3.10+; pinned to 3.x
+
+# ── Numerical ─────────────────────────────────────────────────────────────
+numpy<1.24              # numpy >=1.24 breaks librosa and several StyleGAN deps

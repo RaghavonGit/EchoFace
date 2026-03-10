@@ -12,11 +12,9 @@ SCAFFOLD_DIRS = [
     "asr",
     "encoder",
     "generator",
-    "optimizer",
     "ui",
-    "utils",
     "outputs",
-    os.path.join("data", "human_faces"),
+    os.path.join("checkpoints", "ffhq"),
     os.path.join("StyleGAN-Human", "pretrained_models"),
 ]
 

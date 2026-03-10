@@ -42,3 +42,9 @@ Thumbs.db
 
 # Claude memory (local only)
 .claude/
+CLAUDE.md
+.planning/
+
+# Local-only docs and config
+system_config.txt
+*.docx

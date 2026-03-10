@@ -129,8 +129,8 @@ class StyleCLIPWrapper:
     def generate(
         self,
         text_prompt: str,
-        steps: int = 100,
-        lr: float = 0.03,
+        steps: int = 60,
+        lr: float = 0.05,
         callback=None,
     ) -> tuple:
         """
@@ -159,6 +159,7 @@ class StyleCLIPWrapper:
         )
 
         optimizer = torch.optim.Adam([w_opt], lr=lr)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=steps)
 
         # ── Encode the text prompt once (it doesn't change) ─────────────────
         text_feat = self._encode_text(text_prompt)   # [1, 512], no grad
@@ -171,6 +172,9 @@ class StyleCLIPWrapper:
             .expand(1, num_ws, -1)
             .detach()
         )
+
+        best_loss = float("inf")
+        no_improve = 0
 
         try:
             for step in range(steps):
@@ -190,18 +194,28 @@ class StyleCLIPWrapper:
                 # epsilon inside sqrt prevents NaN gradient at step 0 when w_opt == w_avg
                 l2_loss = (w_opt - w_avg_expand).pow(2).sum().add(1e-8).sqrt()
 
-                loss = cos_loss + 0.005 * l2_loss
-                
+                loss = cos_loss + 0.008 * l2_loss
+
                 # Guard: skip step if loss is NaN (can happen on first few CUDA steps)
                 if torch.isnan(loss):
                     print(f"  ⚠ Step {step}: NaN loss detected, skipping update")
                     optimizer.zero_grad()
                     continue
-                
+
                 loss.backward()
-                # Clip gradients to prevent explosion
                 torch.nn.utils.clip_grad_norm_([w_opt], max_norm=1.0)
                 optimizer.step()
+                scheduler.step()
+
+                # Early stopping: quit if loss hasn't improved by >0.001 in 15 steps
+                if loss.item() < best_loss - 0.001:
+                    best_loss = loss.item()
+                    no_improve = 0
+                else:
+                    no_improve += 1
+                if no_improve >= 15:
+                    print(f"  → Early stop at step {step} (no improvement for 15 steps)")
+                    break
 
                 if step % 10 == 0:
                     print(

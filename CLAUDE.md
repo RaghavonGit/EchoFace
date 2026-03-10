@@ -1,5 +1,5 @@
 # EchoFace — Project Context for Claude Code
-<!-- Last updated: 2026-03-08 — FaceGAN pipeline replacing CLIP optimizer -->
+<!-- Last updated: 2026-03-08 — FaceGAN v2: 128×128 output, no dropout, L1=10 -->
 
 ## Project Overview
 EchoFace is a multimodal AI framework that generates photorealistic human faces from spoken descriptions.
@@ -159,6 +159,8 @@ D:\EchoFace\
 | 2026-03-08 | Installed h5py into stylehuman env |
 | 2026-03-08 | Built datasets/faces_clip.hdf5 from 5,000 real + 4,630 AI-gen faces |
 | 2026-03-08 | Started full 150-epoch FaceGAN training (~35min on CUDA) |
+| 2026-03-08 | FaceGAN v1 output was blurry (64×64, L1=50, dropout) — upgraded to v2 |
+| 2026-03-08 | FaceGAN v2: IMAGE_SIZE=128, no dropout, l1_coef=10; old checkpoints deleted; dataset rebuild + retrain required |
 
 ---
 

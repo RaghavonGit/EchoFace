@@ -1,5 +1,8 @@
 import sys
 import os
+import warnings
+# Suppress the MSVC/CUDA kernel build spam from StyleGAN-Human
+warnings.filterwarnings("ignore", message="Failed to build CUDA kernels")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
@@ -12,8 +15,7 @@ import numpy as np
 from PIL import Image
 
 import gpu_utils
-from generator.stylegan_wrapper import StyleGANWrapper
-from optimizer.clip_optimizer import optimize
+from generator.styleclip_wrapper import StyleCLIPWrapper
 from asr.audio_processor import process_audio
 from asr.transcriber import Transcriber
 
@@ -31,12 +33,8 @@ def _startup_notice(cfg):
     )
 
 
-def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg, gan_wrapper=None):
-    """Generator function wiring ASR + optimizer (or GAN) into a single Gradio event handler.
-
-    When gan_wrapper is provided, STAGE 3 uses the CLIP-conditioned FaceGAN
-    (instant single-pass inference) instead of the 150-step CLIP optimizer.
-    When gan_wrapper is None, falls back to the legacy optimize() path.
+def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
+    """Generator function wiring ASR + StyleCLIP into a single Gradio event handler.
 
     Yield schema (6-element tuples):
       index 0: status_out  (str)
@@ -81,21 +79,33 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg, gan_wrapper=Non
 
     # STAGE 3 — Text bypass path (prompt is non-empty)
 
-    # ── Fast path: CLIP-conditioned FaceGAN (trained model) ───────────────────
-    if gan_wrapper is not None:
-        yield (
-            "Generating face...",
-            "",
-            "",
-            None,
-            None,
-            gr.update(visible=False),
-        )
+    # ── Legacy path: StyleCLIP 50-step latent optimisation ────────────────────
+    
+    score_q = queue.Queue()
+    result_holder = {}
+
+    def _cb(step, loss, img):
+        score_q.put(("progress", step, loss, img))
+
+    def _run():
         try:
-            pil_image, final_sim = gan_wrapper.generate(prompt)
+            pil_image, final_sim = wrapper.generate(prompt, callback=_cb)
+            result_holder["success"] = (pil_image, final_sim)
+            score_q.put(("done", None, None, None))
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            result_holder["error"] = exc
+            score_q.put(("error", None, None, None))
+            
+    threading.Thread(target=_run, daemon=True).start()
+    
+    last_img = None
+    while True:
+        msg, step, loss, img = score_q.get()
+        if msg == "error":
             yield (
-                f"Generation failed: {exc}",
+                f"Generation failed: {result_holder['error']}",
                 "",
                 "",
                 None,
@@ -103,80 +113,30 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg, gan_wrapper=Non
                 gr.update(visible=False),
             )
             return
-        yield (
-            "Done.",
-            "",
-            f"CLIP similarity: {final_sim:.4f}",
-            np.array(pil_image),
-            pil_image,
-            gr.update(visible=True),
-        )
-        return
-
-    # ── Legacy path: 150-step CLIP latent optimisation ────────────────────────
-    yield (
-        "Starting optimization...",
-        "",
-        "",
-        None,
-        None,
-        gr.update(visible=False),
-    )
-
-    score_q = queue.Queue()
-    result_holder = {}
-
-    def _cb(step, loss, sim_score):
-        score_q.put((step, sim_score))
-
-    def _run():
-        try:
-            result_holder["ok"] = optimize(prompt, wrapper, cfg, callback=_cb)
-        except Exception as exc:
-            result_holder["err"] = exc
-        finally:
-            score_q.put(None)  # sentinel
-
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
-
-    while True:
-        item = score_q.get()
-        if item is None:
-            break
-        step, sim = item
-        yield (
-            f"Optimizing... step {step}/150",
-            "",
-            f"CLIP similarity: {sim:.4f}",
-            None,
-            None,
-            gr.update(visible=False),
-        )
-
-    t.join()
-
-    if "err" in result_holder:
-        err = result_holder["err"]
-        yield (
-            f"Generation failed: {err}",
-            "",
-            "",
-            None,
-            None,
-            gr.update(visible=False),
-        )
-        return
-
-    pil_image, w_tensor, final_sim = result_holder["ok"]
-    yield (
-        "Done.",
-        "",
-        f"CLIP similarity: {final_sim:.4f}",
-        np.array(pil_image),
-        pil_image,
-        gr.update(visible=True),
-    )
+        elif msg == "done":
+            pil_image, final_sim = result_holder["success"]
+            # Always convert to numpy - Gradio `gr.Image(type='numpy')` needs ndarray
+            img_arr = np.array(pil_image) if pil_image is not None else last_img
+            yield (
+                "✅ Generation complete!",
+                "",
+                f"CLIP Score: {final_sim:.4f}",
+                img_arr,
+                pil_image,
+                gr.update(visible=True),
+            )
+            return
+        elif msg == "progress":
+            last_img = img if img is not None else last_img
+            arr = np.array(last_img) if last_img is not None else None
+            yield (
+                f"🔄 Optimizing... Step {step}/100",
+                "",
+                f"Current Loss: {loss:.4f}",
+                arr,
+                last_img,
+                gr.update(visible=False),
+            )
 
 
 def export_image(pil_image, outputs_dir=None):
@@ -198,22 +158,21 @@ def export_image(pil_image, outputs_dir=None):
     return (gr.update(visible=True), gr.update(visible=True, value=path))
 
 
-def _build_demo(wrapper, cfg, gan_wrapper=None):
+def _build_demo(wrapper, cfg):
     """Build and return the Gradio Blocks demo object.
 
     Separated from __main__ so tests can call it with mock wrapper/cfg
     without triggering pkl load.
 
     Args:
-        wrapper:     StyleGANWrapper (used when gan_wrapper is None)
+        wrapper:     StyleCLIPWrapper
         cfg:         device config dict
-        gan_wrapper: FaceGANWrapper (when available, used instead of optimize())
     """
     import functools
 
     startup_notice = _startup_notice(cfg)
 
-    gen = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg, gan_wrapper=gan_wrapper)
+    gen = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg)
     exp = functools.partial(export_image)
 
     with gr.Blocks(title="EchoFace") as demo:
@@ -230,7 +189,7 @@ def _build_demo(wrapper, cfg, gan_wrapper=None):
                 text_in = gr.Textbox(
                     lines=3,
                     label="Face description — type here or record audio above",
-                    placeholder="e.g. a young woman with dark curly hair and brown eyes",
+                    placeholder="e.g. a young woman with dark curly hair wearing a red dress",
                 )
                 gen_btn = gr.Button("Generate", variant="primary")
 
@@ -261,27 +220,16 @@ def _build_demo(wrapper, cfg, gan_wrapper=None):
 if __name__ == "__main__":
     cfg = gpu_utils.get_device_config()
 
-    # ── Prefer FaceGAN if a trained checkpoint exists ─────────────────────────
-    GAN_CHECKPOINT = os.path.join(PROJECT_ROOT, "checkpoints", "face_gan", "gen_best.pth")
-    gan_wrapper = None
-    wrapper = None
+    print("[app] Initializing StyleCLIP Optimizer (FFHQ StyleGAN2)...")
+    PKL_PATH = os.path.join(
+        PROJECT_ROOT,
+        "checkpoints",
+        "ffhq",
+        "ffhq.pkl",
+    )
+    wrapper = StyleCLIPWrapper(PKL_PATH, cfg)
 
-    if os.path.exists(GAN_CHECKPOINT):
-        from generator.face_gan_wrapper import FaceGANWrapper
-        print(f"[app] Loading FaceGANWrapper from {GAN_CHECKPOINT}")
-        gan_wrapper = FaceGANWrapper(GAN_CHECKPOINT, cfg)
-        print("[app] FaceGAN ready — using fast CLIP-conditioned generation")
-    else:
-        print("[app] No FaceGAN checkpoint found — using CLIP latent optimiser (StyleGAN-Human)")
-        PKL_PATH = os.path.join(
-            PROJECT_ROOT,
-            "StyleGAN-Human",
-            "pretrained_models",
-            "stylegan_human_v2_1024.pkl",
-        )
-        wrapper = StyleGANWrapper(PKL_PATH, cfg)
-
-    demo = _build_demo(wrapper, cfg, gan_wrapper=gan_wrapper)
+    demo = _build_demo(wrapper, cfg)
     demo.queue(concurrency_count=1).launch(
         server_name="127.0.0.1", share=False, show_error=True
     )

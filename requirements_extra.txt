@@ -12,3 +12,8 @@ soundfile>=0.10.3
 gradio>=3.40,<4.0
 pytorch-fid>=0.2.1
 numpy<1.24
+transformers==4.26.1
+torchvision
+diffusers==0.21.4
+accelerate
+huggingface-hub==0.22.2

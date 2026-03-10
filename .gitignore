@@ -1,5 +1,44 @@
-ori_model.txt
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .pytest_cache/
+
+# Model checkpoints and weights (large binary files)
+checkpoints/
+*.pkl
+*.pth
+*.pt
+*.ckpt
+
+# Datasets
+datasets/
+*.hdf5
+*.h5
+
+# Generated outputs
 outputs/*.png
+outputs/*.jpg
+
+# Logs and debug artifacts
+*.log
+crash_log*.txt
+startup.log
+debug_*.py
+debug_*.png
+test_output*.png
+ori_model.txt
+
+# Large external repos (cloned separately)
+StyleGAN-Human/
+StyleCLIP/
+
+# IDE and OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Claude memory (local only)
+.claude/

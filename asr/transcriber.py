@@ -1,6 +1,20 @@
 import gc
 import logging
 import torch
+
+# ── Whisper / PyTorch 1.9.x compatibility ────────────────────────────────────
+# openai-whisper >= 20231117 passes weights_only=True to torch.load, but
+# PyTorch 1.9.1 does not support that keyword argument.  Strip it silently.
+_real_torch_load = torch.load
+
+def _patched_torch_load(f, map_location=None, pickle_module=None, **kwargs):
+    kwargs.pop("weights_only", None)
+    extra = {"pickle_module": pickle_module} if pickle_module is not None else {}
+    return _real_torch_load(f, map_location=map_location, **extra)
+
+torch.load = _patched_torch_load
+# ─────────────────────────────────────────────────────────────────────────────
+
 import whisper
 
 logger = logging.getLogger(__name__)

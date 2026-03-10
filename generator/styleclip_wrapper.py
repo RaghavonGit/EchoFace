@@ -14,7 +14,9 @@ Key design decisions:
 
 import sys
 import os
+import io
 import traceback
+import contextlib
 
 import torch
 import clip
@@ -29,6 +31,22 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, "StyleGAN-Human"))
 
 import dnnlib
 import legacy
+
+# ---------------------------------------------------------------------------
+# Suppress the repeated "Setting up PyTorch plugin ... Failed!" spam from
+# dnnlib's custom CUDA ops — they fall back to Python automatically and the
+# messages are printed to stdout on every synthesis call on Windows.
+# ---------------------------------------------------------------------------
+@contextlib.contextmanager
+def _quiet():
+    with open(os.devnull, "w") as devnull:
+        old_stdout, old_stderr = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = devnull, devnull
+        try:
+            yield
+        finally:
+            sys.stdout, sys.stderr = old_stdout, old_stderr
+
 
 # CLIP normalisation constants (ViT-B/32)
 _CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
@@ -48,7 +66,7 @@ class StyleCLIPWrapper:
         print(f"[StyleCLIPWrapper] Loading FFHQ StyleGAN2 from:\n  {pkl_path}")
 
         # ── 1. StyleGAN generator ────────────────────────────────────────────
-        with dnnlib.util.open_url(pkl_path) as f:
+        with _quiet(), dnnlib.util.open_url(pkl_path) as f:
             self.G = legacy.load_network_pkl(f)["G_ema"].to(self.device)
         self.G.eval()
         for p in self.G.parameters():
@@ -96,7 +114,8 @@ class StyleCLIPWrapper:
         WITH gradients flowing back through w.
         Full body is kept so CLIP can score both face attributes AND clothing.
         """
-        img = self.G.synthesis(w, noise_mode="const", force_fp32=True)  # [-1, 1]
+        with _quiet():
+            img = self.G.synthesis(w, noise_mode="const", force_fp32=True)  # [-1, 1]
         img = (img + 1.0) * 0.5                                          # [0, 1]
         # FFHQ output is square [B, 3, 1024, 1024] — no face crop needed
         img = torch.nn.functional.interpolate(
@@ -241,7 +260,8 @@ class StyleCLIPWrapper:
             # ── Final render: FFHQ face → 1024×1024 ─────────────────────────
             print("[StyleCLIP] Rendering final face (1024×1024) ...")
             with torch.no_grad():
-                final_raw = self.G.synthesis(w_opt.detach(), noise_mode="const", force_fp32=True)
+                with _quiet():
+                    final_raw = self.G.synthesis(w_opt.detach(), noise_mode="const", force_fp32=True)
                 final_raw = (final_raw + 1.0) * 0.5
                 final_raw = torch.nn.functional.interpolate(
                     final_raw, size=(1024, 1024), mode="bilinear", align_corners=False

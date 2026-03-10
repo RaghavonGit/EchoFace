@@ -31,7 +31,6 @@ test_output*.png
 ori_model.txt
 
 # Large external repos (cloned separately)
-StyleGAN-Human/
 StyleCLIP/
 
 # IDE and OS

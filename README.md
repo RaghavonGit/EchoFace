@@ -34,14 +34,14 @@ Your voice  →  Whisper ASR  →  CLIP embedding  →  StyleGAN2 optimization  
 ### 1. Clone the repo (with submodules)
 
 ```bash
-git clone --recurse-submodules https://github.com/RaghavonGit/EchoFace.git
+git clone https://github.com/RaghavonGit/EchoFace.git
 cd EchoFace
+git submodule update --init --recursive
 ```
 
-> The `--recurse-submodules` flag pulls the StyleGAN-Human repo automatically. If you forgot it, run:
-> ```bash
-> git submodule update --init --recursive
-> ```
+> **This step is required.** The `git submodule update` command pulls the StyleGAN-Human repo which contains `dnnlib` and `legacy` — modules the app depends on. Skipping it will cause a `ModuleNotFoundError: No module named 'dnnlib'` error.
+>
+> If you cloned via a GUI (VS Code, GitHub Desktop, etc.), the submodule folder will appear empty. Just run the `git submodule update` command above inside the project folder to fix it.
 
 ---
 
@@ -167,7 +167,7 @@ EchoFace/
 
 | Problem | Fix |
 |---|---|
-| `ModuleNotFoundError: No module named 'dnnlib'` | Run `git submodule update --init --recursive` |
+| `ModuleNotFoundError: No module named 'dnnlib'` | StyleGAN-Human submodule is empty — run `git submodule update --init --recursive` inside the project folder |
 | `FileNotFoundError: ffhq.pkl` | Download the checkpoint and place it at `checkpoints/ffhq/ffhq.pkl` |
 | Generation is very slow | No GPU detected — CPU fallback is ~3-5 min/image, this is expected |
 | CUDA kernel build warnings | Safe to ignore — Python fallback is used automatically on Windows |

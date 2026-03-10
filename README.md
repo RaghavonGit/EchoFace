@@ -70,22 +70,48 @@ pip install -r requirements_extra.txt
 
 ---
 
-### 3. Download the FFHQ model weights
+### 3. Add the FFHQ model weights
 
-The FFHQ StyleGAN2-ADA checkpoint (~364 MB) is too large for GitHub. Download it manually:
+The FFHQ StyleGAN2-ADA checkpoint (~364 MB) is too large for GitHub and is **not included** in the repo. You must add it manually before the app will start.
 
-1. Go to [this Google Drive link](https://drive.google.com/drive/folders/1u2xu7bSrWxrbUxk-dT-UvEJq8IchBJ4S) (official FFHQ StyleGAN2-ADA weights)
+First, create the folder:
+
+```bash
+# Windows
+mkdir checkpoints\ffhq
+
+# macOS / Linux
+mkdir -p checkpoints/ffhq
+```
+
+Then get `ffhq.pkl` using one of these options:
+
+**Option A — Download from Google Drive**
+1. Go to the [official FFHQ StyleGAN2-ADA weights](https://drive.google.com/drive/folders/1u2xu7bSrWxrbUxk-dT-UvEJq8IchBJ4S)
 2. Download `ffhq.pkl`
-3. Place it at:
+3. Move it to `checkpoints/ffhq/ffhq.pkl`
+
+**Option B — Copy from an existing install**
+
+If you already have EchoFace set up elsewhere on the same machine:
+
+```bash
+# Windows (adjust source path to match your existing install)
+copy "C:\path\to\old\EchoFace\checkpoints\ffhq\ffhq.pkl" "checkpoints\ffhq\ffhq.pkl"
+```
+
+Either way, the final layout must look like this:
 
 ```
 EchoFace/
 └── checkpoints/
     └── ffhq/
-        └── ffhq.pkl   ← here
+        └── ffhq.pkl   ← required
 ```
 
-> Whisper model weights (~1.5 GB for `medium`) download automatically on first run and are cached at `~/.cache/whisper/`.
+> Skipping this step causes: `FileNotFoundError: No such file or directory: '...\checkpoints\ffhq\ffhq.pkl'`
+
+> Whisper model weights (~1.5 GB for `medium`) download automatically on first run and are cached at `~/.cache/whisper/` — no action needed.
 
 ---
 

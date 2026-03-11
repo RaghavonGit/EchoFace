@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logging
 import queue
 import threading
+import time
 from datetime import datetime
 
 import gradio as gr
@@ -280,6 +281,22 @@ textarea:focus, input[type=text]:focus {
     padding: 0.5rem 0.75rem !important;
 }
 
+/* ── Seed input ──────────────────────────────────────────── */
+#seed-box input[type=number] {
+    background: #050811 !important;
+    border: 1px solid #13233a !important;
+    border-radius: 10px !important;
+    color: #c0d0e8 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.88rem !important;
+    transition: border-color 0.25s !important;
+}
+#seed-box input[type=number]:focus {
+    border-color: #00cfff !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(0,207,255,0.07) !important;
+}
+
 /* ── Export path ─────────────────────────────────────────── */
 #export-path textarea {
     font-family: 'JetBrains Mono', monospace !important;
@@ -342,7 +359,7 @@ def _startup_notice(cfg):
 
 # ── Core generator function ───────────────────────────────────────────────────
 
-def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
+def generate_fn(mic_audio, file_audio, text_input, seed_input, wrapper, cfg):
     """
     Yields 7-element tuples:
       0  status_out   (str)
@@ -358,8 +375,9 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
 
     audio_path = file_audio if file_audio is not None else mic_audio
     prompt = text_input.strip() if text_input else ""
+    seed   = int(seed_input) if seed_input not in (None, "") else None
 
-    # ── Guard ─────────────────────────────────────────────────────────────
+    # ── Guard: nothing provided ────────────────────────────────────────────
     if not prompt and audio_path is None:
         yield _y("Please provide a description or record audio.",
                  "", "", None, None, gr.update(visible=False), _LOADER_OFF)
@@ -376,16 +394,23 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
                  transcription, "", None, None, gr.update(visible=False), _LOADER_OFF)
         return
 
+    # ── Guard: prompt too short ────────────────────────────────────────────
+    if len(prompt.split()) < 4:
+        yield _y("⚠ Prompt is too short — add more detail (hair, eyes, age, skin tone).",
+                 prompt, "", None, None, gr.update(visible=False), _LOADER_OFF)
+        return
+
     # ── Stage 2: StyleCLIP optimization ───────────────────────────────────
     score_q = queue.Queue()
     result_holder = {}
+    t_start = time.time()
 
     def _cb(step, loss, pil_img):
         score_q.put(("progress", step, loss, pil_img))
 
     def _run():
         try:
-            pil_image, final_sim = wrapper.generate(prompt, callback=_cb)
+            pil_image, final_sim = wrapper.generate(prompt, seed=seed, callback=_cb)
             result_holder["success"] = (pil_image, final_sim)
             score_q.put(("done", None, None, None))
         except Exception as exc:
@@ -406,17 +431,20 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
             return
 
         elif msg == "done":
+            elapsed = time.time() - t_start
             pil_image, final_sim = result_holder["success"]
             final_arr = np.array(pil_image) if pil_image is not None else last_img_arr
-            yield _y("Generation complete.",
-                     "", f"CLIP Score: {final_sim:.4f}",
+            seed_note = f"  ·  seed {seed}" if seed is not None else ""
+            yield _y(f"Generation complete.  {elapsed:.0f}s",
+                     "", f"CLIP Score: {final_sim:.4f}  ·  {elapsed:.0f}s{seed_note}",
                      final_arr, pil_image, gr.update(visible=True), _LOADER_OFF)
             return
 
         elif msg == "progress":
+            elapsed = time.time() - t_start
             if pil_img is not None:
                 last_img_arr = np.array(pil_img)
-            yield _y(f"Optimizing...  step {step} / 60",
+            yield _y(f"Optimizing...  step {step} / 60  ({elapsed:.0f}s)",
                      prompt, f"Loss: {loss:.4f}",
                      last_img_arr, pil_img, gr.update(visible=False), _LOADER_ON)
 
@@ -441,6 +469,7 @@ def _build_demo(wrapper, cfg):
     import functools
     gen = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg)
     exp = functools.partial(export_image)
+
 
     with gr.Blocks(title="EchoFace", css=CUSTOM_CSS) as demo:
 
@@ -475,6 +504,12 @@ def _build_demo(wrapper, cfg):
                     label="Face Description",
                     placeholder="e.g.  a young woman with dark curly hair and blue eyes",
                 )
+                seed_in = gr.Number(
+                    label="Seed  (leave blank for random)",
+                    value=None,
+                    precision=0,
+                    elem_id="seed-box",
+                )
                 gen_btn = gr.Button("Generate", variant="primary", elem_id="gen-btn")
 
             # ── Right panel — outputs ───────────────────────────────────
@@ -505,7 +540,7 @@ def _build_demo(wrapper, cfg):
         # ── Wiring ───────────────────────────────────────────────────────
         gen_btn.click(
             fn=gen,
-            inputs=[mic_in, file_in, text_in],
+            inputs=[mic_in, file_in, text_in, seed_in],
             outputs=[status_out, text_in, score_out, image_out, stored_image, export_btn, loader_html],
         )
         export_btn.click(

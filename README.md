@@ -86,10 +86,15 @@ mkdir -p checkpoints/ffhq
 
 Then get `ffhq.pkl` using one of these options:
 
-**Option A — Download from Google Drive**
-1. Go to the [official FFHQ StyleGAN2-ADA weights](https://drive.google.com/drive/folders/1u2xu7bSrWxrbUxk-dT-UvEJq8IchBJ4S)
-2. Download `ffhq.pkl`
-3. Move it to `checkpoints/ffhq/ffhq.pkl`
+**Option A — Download directly from NVIDIA (recommended)**
+
+Paste this URL into your browser — it will download `ffhq.pkl` (~364 MB) directly:
+
+```
+https://nvlabs-fi-cdn.nvidia.com/stylegan2-ada-pytorch/pretrained/ffhq.pkl
+```
+
+Then move the downloaded file to `checkpoints/ffhq/ffhq.pkl`.
 
 **Option B — Copy from an existing install**
 

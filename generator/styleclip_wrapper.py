@@ -150,22 +150,16 @@ class StyleCLIPWrapper:
         text_prompt: str,
         steps: int = 60,
         lr: float = 0.05,
-        seed: int = None,
-        truncation_psi: float = 0.7,
         callback=None,
     ) -> tuple:
         """
         Optimise the W+ latent to match text_prompt.
 
         Args:
-            text_prompt:     Natural language description of the face.
-            steps:           Number of Adam optimisation steps.
-            lr:              Learning rate for Adam.
-            seed:            Optional random seed for reproducible results.
-                             None = random each run (different face every time).
-            truncation_psi:  StyleGAN truncation (0–1). Lower = more realistic,
-                             less varied. 0.7 is a good quality/diversity balance.
-            callback:        Optional fn(step, loss, PIL.Image) called every 10 steps.
+            text_prompt: Natural language description of the face.
+            steps:       Number of Adam optimisation steps.
+            lr:          Learning rate for Adam.
+            callback:    Optional fn(step, loss, PIL.Image) called every 10 steps.
 
         Returns:
             (PIL.Image, float) — final face image and cosine similarity score.
@@ -174,21 +168,13 @@ class StyleCLIPWrapper:
         clipped_prompt = f"a photo of a face, {text_prompt}"
         print(f"[StyleCLIP] Prompt: '{clipped_prompt}'")
 
-        # ── Seed for reproducibility ─────────────────────────────────────────
-        rng = torch.Generator(device=self.device)
-        if seed is not None:
-            rng.manual_seed(seed)
-        else:
-            rng.manual_seed(int(torch.randint(0, 2**31, (1,)).item()))
-
-        # ── Build initial W+ latent with truncation + noise ──────────────────
-        # Truncation pulls the latent toward w_avg (more realistic faces).
-        # Small noise ensures variety — different results per run.
+        # ── Build initial W+ latent from mean face ───────────────────────────
         num_ws = self.G.mapping.num_ws
-        noise   = torch.randn(1, num_ws, 512, generator=rng, device=self.device) * 0.05
-        w_init  = self._w_avg.unsqueeze(0).unsqueeze(0).expand(1, num_ws, -1)
         w_opt = (
-            (w_init + (w_init - self._w_avg) * (truncation_psi - 1.0) + noise)
+            self._w_avg
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(1, num_ws, -1)
             .clone()
             .requires_grad_(True)
         )
@@ -199,8 +185,15 @@ class StyleCLIPWrapper:
         # ── Encode the text prompt once (it doesn't change) ─────────────────
         text_feat = self._encode_text(clipped_prompt)   # [1, 512], no grad
 
-        # ── W+ anchor for L2 regulariser (use truncated init, not raw w_avg) ──
-        w_avg_expand = w_opt.detach().clone()
+        # ── W+ anchor for L2 regulariser — must stay fixed at w_avg ─────────
+        # Anchoring to anything else lets the optimizer drift into artifact space.
+        w_avg_expand = (
+            self._w_avg
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(1, num_ws, -1)
+            .detach()
+        )
 
         best_loss = float("inf")
         no_improve = 0
@@ -223,7 +216,7 @@ class StyleCLIPWrapper:
                 # epsilon inside sqrt prevents NaN gradient at step 0 when w_opt == w_avg
                 l2_loss = (w_opt - w_avg_expand).pow(2).sum().add(1e-8).sqrt()
 
-                loss = cos_loss + 0.008 * l2_loss
+                loss = cos_loss + 0.02 * l2_loss
 
                 # Guard: skip step if loss is NaN (can happen on first few CUDA steps)
                 if torch.isnan(loss):

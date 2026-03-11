@@ -281,22 +281,6 @@ textarea:focus, input[type=text]:focus {
     padding: 0.5rem 0.75rem !important;
 }
 
-/* ── Seed input ──────────────────────────────────────────── */
-#seed-box input[type=number] {
-    background: #050811 !important;
-    border: 1px solid #13233a !important;
-    border-radius: 10px !important;
-    color: #c0d0e8 !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.88rem !important;
-    transition: border-color 0.25s !important;
-}
-#seed-box input[type=number]:focus {
-    border-color: #00cfff !important;
-    outline: none !important;
-    box-shadow: 0 0 0 3px rgba(0,207,255,0.07) !important;
-}
-
 /* ── Export path ─────────────────────────────────────────── */
 #export-path textarea {
     font-family: 'JetBrains Mono', monospace !important;
@@ -359,7 +343,7 @@ def _startup_notice(cfg):
 
 # ── Core generator function ───────────────────────────────────────────────────
 
-def generate_fn(mic_audio, file_audio, text_input, seed_input, wrapper, cfg):
+def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
     """
     Yields 7-element tuples:
       0  status_out   (str)
@@ -375,7 +359,6 @@ def generate_fn(mic_audio, file_audio, text_input, seed_input, wrapper, cfg):
 
     audio_path = file_audio if file_audio is not None else mic_audio
     prompt = text_input.strip() if text_input else ""
-    seed   = int(seed_input) if seed_input not in (None, "") else None
 
     # ── Guard: nothing provided ────────────────────────────────────────────
     if not prompt and audio_path is None:
@@ -410,7 +393,7 @@ def generate_fn(mic_audio, file_audio, text_input, seed_input, wrapper, cfg):
 
     def _run():
         try:
-            pil_image, final_sim = wrapper.generate(prompt, seed=seed, callback=_cb)
+            pil_image, final_sim = wrapper.generate(prompt, callback=_cb)
             result_holder["success"] = (pil_image, final_sim)
             score_q.put(("done", None, None, None))
         except Exception as exc:
@@ -434,9 +417,8 @@ def generate_fn(mic_audio, file_audio, text_input, seed_input, wrapper, cfg):
             elapsed = time.time() - t_start
             pil_image, final_sim = result_holder["success"]
             final_arr = np.array(pil_image) if pil_image is not None else last_img_arr
-            seed_note = f"  ·  seed {seed}" if seed is not None else ""
             yield _y(f"Generation complete.  {elapsed:.0f}s",
-                     "", f"CLIP Score: {final_sim:.4f}  ·  {elapsed:.0f}s{seed_note}",
+                     "", f"CLIP Score: {final_sim:.4f}",
                      final_arr, pil_image, gr.update(visible=True), _LOADER_OFF)
             return
 
@@ -504,12 +486,6 @@ def _build_demo(wrapper, cfg):
                     label="Face Description",
                     placeholder="e.g.  a young woman with dark curly hair and blue eyes",
                 )
-                seed_in = gr.Number(
-                    label="Seed  (leave blank for random)",
-                    value=None,
-                    precision=0,
-                    elem_id="seed-box",
-                )
                 gen_btn = gr.Button("Generate", variant="primary", elem_id="gen-btn")
 
             # ── Right panel — outputs ───────────────────────────────────
@@ -540,7 +516,7 @@ def _build_demo(wrapper, cfg):
         # ── Wiring ───────────────────────────────────────────────────────
         gen_btn.click(
             fn=gen,
-            inputs=[mic_in, file_in, text_in, seed_in],
+            inputs=[mic_in, file_in, text_in],
             outputs=[status_out, text_in, score_out, image_out, stored_image, export_btn, loader_html],
         )
         export_btn.click(

@@ -95,6 +95,12 @@ class StyleCLIPWrapper:
             .to(self.device)
         )
 
+        # ── Edit state ────────────────────────────────────────────────────────
+        self._current_w:    "torch.Tensor | None" = None
+        self._original_w:   "torch.Tensor | None" = None
+        self._original_prompt: "str | None" = None
+        self._original_sim: "float | None" = None
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -284,6 +290,12 @@ class StyleCLIPWrapper:
 
             if callback is not None:
                 callback(steps, final_sim, final_pil)
+
+            # Store state for edit / reset
+            self._original_prompt = text_prompt          # raw, pre-prefix
+            self._current_w  = w_opt.detach().clone()
+            self._original_w = self._current_w.clone()
+            self._original_sim = final_sim
 
             return final_pil, final_sim
 

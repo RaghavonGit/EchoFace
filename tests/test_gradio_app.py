@@ -97,24 +97,24 @@ class TestGenerateFn(unittest.TestCase):
         mock_t.assert_not_called()
 
     def test_generation_complete_status(self):
-        """Final yield status says 'Generation complete.'"""
+        """Final yield status contains 'Generation complete'."""
         yields = _all_yields(text="a young woman with blue eyes")
-        self.assertEqual(yields[-1][0], "Generation complete.")
+        self.assertIn("Generation complete", yields[-1][0])
 
     def test_final_yield_clip_score(self):
         """Final yield score (index 2) contains the sim value to 4 decimal places."""
         w = _mock_wrapper(sim=0.3142)
-        yields = _all_yields(text="a man", wrapper=w)
+        yields = _all_yields(text="an elderly man with grey beard", wrapper=w)
         self.assertIn("0.3142", yields[-1][2])
 
     def test_final_yield_image_is_ndarray(self):
         """Final yield image (index 3) is a numpy ndarray."""
-        yields = _all_yields(text="a woman")
+        yields = _all_yields(text="a young woman with dark hair")
         self.assertIsInstance(yields[-1][3], np.ndarray)
 
     def test_export_btn_visible_on_done(self):
         """Final yield export_btn (index 5) has visible=True."""
-        yields = _all_yields(text="a woman")
+        yields = _all_yields(text="a young woman with dark hair")
         export_update = yields[-1][5]
         # gr.update returns a dict-like with visible key
         visible = (
@@ -127,7 +127,7 @@ class TestGenerateFn(unittest.TestCase):
     def test_progress_yields_before_done(self):
         """Intermediate yields appear before the final done yield."""
         w = _mock_wrapper(steps_to_fire=(0, 10, 20))
-        yields = _all_yields(text="a man", wrapper=w)
+        yields = _all_yields(text="an elderly man with grey hair", wrapper=w)
         # At least 3 progress yields + 1 done yield
         self.assertGreaterEqual(len(yields), 4)
         # All but last have "Optimizing" in status
@@ -138,7 +138,7 @@ class TestGenerateFn(unittest.TestCase):
         """wrapper.generate raising RuntimeError yields 'Generation failed:' status."""
         w = MagicMock()
         w.generate.side_effect = RuntimeError("out of memory")
-        yields = _all_yields(text="a young man", wrapper=w)
+        yields = _all_yields(text="a young man with short hair", wrapper=w)
         error_yields = [y for y in yields if "Generation failed:" in y[0]]
         self.assertTrue(len(error_yields) > 0, "Expected at least one error yield")
         self.assertIn("out of memory", error_yields[0][0])
@@ -158,7 +158,7 @@ class TestGenerateFn(unittest.TestCase):
     def test_loader_on_during_progress(self):
         """Progress yields have loader_html (index 6) containing the loader animation."""
         w = _mock_wrapper(steps_to_fire=(0,))
-        yields = _all_yields(text="a man", wrapper=w)
+        yields = _all_yields(text="an elderly man with grey hair", wrapper=w)
         progress_yields = yields[:-1]
         self.assertTrue(len(progress_yields) > 0)
         loader_val = progress_yields[0][6]

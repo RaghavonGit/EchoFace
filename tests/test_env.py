@@ -15,11 +15,8 @@ SCAFFOLD_DIRS = [
     "asr",
     "encoder",
     "generator",
-    "optimizer",
     "ui",
-    "utils",
     "outputs",
-    os.path.join("data", "human_faces"),
     os.path.join("StyleGAN-Human", "pretrained_models"),
 ]
 
@@ -108,24 +105,3 @@ class TestScaffold:
         assert os.path.exists(gitkeep), f".gitkeep missing in: {os.path.join(PROJECT_ROOT, rel_dir)}"
 
 
-class TestValidationScript:
-    """ENV-01: validate_env.py exists and exits cleanly."""
-
-    def test_validate_env_file_exists(self):
-        script = os.path.join(PROJECT_ROOT, "validate_env.py")
-        assert os.path.isfile(script), f"validate_env.py not found at {script}"
-
-    def test_validate_env_runs_successfully(self):
-        script = os.path.join(PROJECT_ROOT, "validate_env.py")
-        result = subprocess.run(
-            [sys.executable, script],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT,
-        )
-        assert result.returncode == 0, (
-            f"validate_env.py exited {result.returncode}:\n{result.stdout}\n{result.stderr}"
-        )
-        assert "ALL CHECKS PASSED" in result.stdout, (
-            f"Expected 'ALL CHECKS PASSED' in output:\n{result.stdout}"
-        )

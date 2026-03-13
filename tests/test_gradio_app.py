@@ -10,7 +10,7 @@ import torch
 from PIL import Image
 from unittest.mock import MagicMock, patch
 
-from ui.app import generate_fn, export_image
+from ui.app import generate_fn, export_image, edit_fn, reset_fn
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -212,6 +212,80 @@ class TestExportImage(unittest.TestCase):
         result = export_image(None)
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
+
+
+# ── edit_fn tests ─────────────────────────────────────────────────────────────
+
+def _mock_edit_wrapper(pil_image=None, sim=0.5000, steps_to_fire=(0,)):
+    """Return a wrapper mock whose .edit() fires callbacks then returns."""
+    pil_image = pil_image or _pil()
+    wrapper = MagicMock()
+
+    def _edit(instruction, callback=None, **kwargs):
+        if callback:
+            for s in steps_to_fire:
+                callback(s, 0.6 - s * 0.01, pil_image)
+        return (pil_image, sim)
+
+    wrapper.edit.side_effect = _edit
+    return wrapper
+
+
+def _all_edit_yields(mic=None, text="", wrapper=None, cfg=None):
+    wrapper = wrapper or _mock_edit_wrapper()
+    cfg = cfg or _cfg()
+    return list(edit_fn(mic, text, wrapper, cfg))
+
+
+class TestEditFn(unittest.TestCase):
+
+    def test_empty_input_guard(self):
+        """No audio and no text → single yield with guidance message."""
+        yields = _all_edit_yields()
+        self.assertEqual(len(yields), 1)
+        self.assertIn("Please provide", yields[0][0])
+
+    def test_short_instruction_guard(self):
+        """Instruction < 4 words → single yield with short-prompt warning."""
+        yields = _all_edit_yields(text="blue eyes")
+        self.assertEqual(len(yields), 1)
+        self.assertIn("short", yields[0][0].lower())
+
+    def test_edit_complete_status(self):
+        """Final yield status contains 'Edit applied'."""
+        yields = _all_edit_yields(text="change eye color to blue")
+        self.assertIn("Edit applied", yields[-1][0])
+
+    def test_edit_updates_stored_image(self):
+        """Final yield stored_image (index 4) is a PIL Image."""
+        from PIL import Image as PILImage
+        yields = _all_edit_yields(text="change eye color to blue")
+        self.assertIsInstance(yields[-1][4], PILImage.Image)
+
+
+class TestResetFn(unittest.TestCase):
+
+    def test_reset_returns_5_tuple(self):
+        """reset_fn returns a 5-element tuple."""
+        wrapper = MagicMock()
+        pil_img = _pil()
+        wrapper.reset.return_value = (pil_img, 0.3500)
+        result = reset_fn(wrapper)
+        self.assertEqual(len(result), 5)
+
+    def test_reset_image_is_ndarray(self):
+        """First element of reset_fn result is a numpy ndarray."""
+        wrapper = MagicMock()
+        wrapper.reset.return_value = (_pil(), 0.35)
+        result = reset_fn(wrapper)
+        self.assertIsInstance(result[0], np.ndarray)
+
+    def test_reset_error_handled(self):
+        """reset_fn handles RuntimeError gracefully (no generate called)."""
+        wrapper = MagicMock()
+        wrapper.reset.side_effect = RuntimeError("Generate a face first.")
+        result = reset_fn(wrapper)
+        self.assertIn("Generate a face first", result[1])
 
 
 if __name__ == '__main__':

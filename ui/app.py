@@ -292,6 +292,47 @@ textarea:focus, input[type=text]:focus {
     padding: 0.4rem 0.75rem !important;
 }
 
+/* ── Edit section ─────────────────────────────────────────── */
+#edit-section {
+    border-top: 1px solid #1a3a2a !important;
+    margin-top: 0.8rem !important;
+    padding-top: 0.8rem !important;
+}
+.ef-edit-label { color: #00ff99 !important; }
+
+#apply-btn {
+    background: linear-gradient(135deg, #0a6a3a 0%, #00884a 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #00ff99 !important;
+    font-family: 'Syne', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    padding: 0.8rem !important;
+    cursor: pointer !important;
+    transition: box-shadow 0.25s !important;
+}
+#apply-btn:hover {
+    box-shadow: 0 0 24px rgba(0,180,80,0.3) !important;
+}
+#reset-btn {
+    background: transparent !important;
+    border: 1px solid #2e4a6a !important;
+    border-radius: 10px !important;
+    color: #5a7a9a !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.08em !important;
+    padding: 0.8rem !important;
+    cursor: pointer !important;
+    transition: all 0.25s !important;
+    text-transform: uppercase;
+}
+#reset-btn:hover {
+    border-color: #5a7a9a !important;
+    color: #8aaaca !important;
+}
+
 /* ── Divider ─────────────────────────────────────────────── */
 .ef-divider {
     height: 1px;
@@ -345,17 +386,18 @@ def _startup_notice(cfg):
 
 def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
     """
-    Yields 7-element tuples:
-      0  status_out   (str)
-      1  text_in      (str)
-      2  score_out    (str)
-      3  image_out    (np.ndarray | None)
-      4  stored_image (PIL.Image | None)
-      5  export_btn   (gr.update)
-      6  loader_html  (gr.update)
+    Yields 8-element tuples:
+      0  status_out    (str)
+      1  text_in       (str)
+      2  score_out     (str)
+      3  image_out     (np.ndarray | None)
+      4  stored_image  (PIL.Image | None)
+      5  export_btn    (gr.update)
+      6  loader_html   (gr.update)
+      7  edit_section  (gr.update)  — visible=True only on done yield
     """
-    def _y(status, text, score, img, pil, export, loader):
-        return (status, text, score, img, pil, export, gr.update(value=loader))
+    def _y(status, text, score, img, pil, export, loader, edit_sec=gr.update()):
+        return (status, text, score, img, pil, export, gr.update(value=loader), edit_sec)
 
     audio_path = file_audio if file_audio is not None else mic_audio
     prompt = text_input.strip() if text_input else ""
@@ -419,7 +461,8 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
             final_arr = np.array(pil_image) if pil_image is not None else last_img_arr
             yield _y(f"Generation complete.  {elapsed:.0f}s",
                      "", f"CLIP Score: {final_sim:.4f}",
-                     final_arr, pil_image, gr.update(visible=True), _LOADER_OFF)
+                     final_arr, pil_image, gr.update(visible=True), _LOADER_OFF,
+                     gr.update(visible=True))
             return
 
         elif msg == "progress":
@@ -429,6 +472,123 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
             yield _y(f"Optimizing...  step {step} / 60  ({elapsed:.0f}s)",
                      prompt, f"Loss: {loss:.4f}",
                      last_img_arr, pil_img, gr.update(visible=False), _LOADER_ON)
+
+
+# ── Edit function ─────────────────────────────────────────────────────────────
+
+def edit_fn(mic_audio, edit_text, wrapper, cfg):
+    """
+    Yields 8-element tuples (same schema as generate_fn):
+      0  status_out    (str)
+      1  edit_text_in  (str)
+      2  score_out     (str)
+      3  image_out     (np.ndarray | None)
+      4  stored_image  (PIL.Image | None)
+      5  apply_btn     (gr.update)  — hidden during progress, shown on done
+      6  loader_html   (gr.update)
+      7  edit_section  (gr.update)  — always gr.update() (already visible)
+    """
+    def _y(status, text, score, img, pil, btn, loader):
+        return (status, text, score, img, pil, btn, gr.update(value=loader), gr.update())
+
+    edit_instruction = edit_text.strip() if edit_text else ""
+    audio_path = mic_audio
+
+    # ── Guard: nothing provided ────────────────────────────────────────────
+    if not edit_instruction and audio_path is None:
+        yield _y("Please provide an edit instruction or record audio.",
+                 "", "", None, None, gr.update(visible=True), _LOADER_OFF)
+        return
+
+    # ── Stage 1: ASR ──────────────────────────────────────────────────────
+    if not edit_instruction and audio_path is not None:
+        yield _y("Transcribing...", "", "", None, None,
+                 gr.update(visible=False), _LOADER_ON)
+        audio_array = process_audio(audio_path)
+        edit_instruction = Transcriber(cfg).transcribe(audio_array)
+        yield _y("Transcribing... Review and click Apply Edit again.",
+                 edit_instruction, "", None, None, gr.update(visible=True), _LOADER_OFF)
+        return
+
+    # ── Guard: instruction too short ───────────────────────────────────────
+    if len(edit_instruction.split()) < 4:
+        yield _y("⚠ Edit too short — be specific (e.g. 'change eyes to blue').",
+                 edit_instruction, "", None, None, gr.update(visible=True), _LOADER_OFF)
+        return
+
+    # ── Stage 2: StyleCLIP edit ────────────────────────────────────────────
+    score_q = queue.Queue()
+    result_holder = {}
+    t_start = time.time()
+
+    def _cb(step, loss, pil_img):
+        score_q.put(("progress", step, loss, pil_img))
+
+    def _run():
+        try:
+            pil_image, final_sim = wrapper.edit(edit_instruction, callback=_cb)
+            result_holder["success"] = (pil_image, final_sim)
+            score_q.put(("done", None, None, None))
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            result_holder["error"] = exc
+            score_q.put(("error", None, None, None))
+
+    threading.Thread(target=_run, daemon=True).start()
+
+    last_img_arr = None
+
+    while True:
+        msg, step, loss, pil_img = score_q.get()
+
+        if msg == "error":
+            yield _y(f"Edit failed: {result_holder['error']}",
+                     edit_instruction, "", None, None,
+                     gr.update(visible=True), _LOADER_OFF)
+            return
+
+        elif msg == "done":
+            elapsed = time.time() - t_start
+            pil_image, final_sim = result_holder["success"]
+            final_arr = np.array(pil_image) if pil_image is not None else last_img_arr
+            yield _y(f"Edit applied.  {elapsed:.0f}s",
+                     edit_instruction, f"CLIP Score: {final_sim:.4f}",
+                     final_arr, pil_image, gr.update(visible=True), _LOADER_OFF)
+            return
+
+        elif msg == "progress":
+            elapsed = time.time() - t_start
+            if pil_img is not None:
+                last_img_arr = np.array(pil_img)
+            yield _y(f"Optimizing edit...  step {step} / 60  ({elapsed:.0f}s)",
+                     edit_instruction, f"Loss: {loss:.4f}",
+                     last_img_arr, pil_img, gr.update(visible=False), _LOADER_ON)
+
+
+# ── Reset function ─────────────────────────────────────────────────────────────
+
+def reset_fn(wrapper):
+    """
+    Restore the face to the original generated state.
+
+    Returns 5-element tuple:
+      0  image_out    (np.ndarray)
+      1  status_out   (str)
+      2  score_out    (str)
+      3  stored_image (PIL.Image)
+      4  export_btn   (gr.update)
+    """
+    try:
+        pil_image, sim = wrapper.reset()
+        return (
+            np.array(pil_image),
+            "Reset to original.",
+            f"CLIP Score: {sim:.4f}",
+            pil_image,
+            gr.update(visible=True),
+        )
+    except RuntimeError as e:
+        return (None, str(e), "", None, gr.update(visible=False))
 
 
 # ── Export ────────────────────────────────────────────────────────────────────
@@ -449,8 +609,9 @@ def export_image(pil_image, outputs_dir=None):
 
 def _build_demo(wrapper, cfg):
     import functools
-    gen = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg)
-    exp = functools.partial(export_image)
+    gen  = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg)
+    edit = functools.partial(edit_fn,     wrapper=wrapper, cfg=cfg)
+    exp  = functools.partial(export_image)
 
 
     with gr.Blocks(title="EchoFace", css=CUSTOM_CSS) as demo:
@@ -488,6 +649,19 @@ def _build_demo(wrapper, cfg):
                 )
                 gen_btn = gr.Button("Generate", variant="primary", elem_id="gen-btn")
 
+                # ── Edit Details — hidden until first generation ─────────
+                with gr.Column(visible=False, elem_id="edit-section") as edit_section_col:
+                    gr.HTML('<div class="ef-section-label ef-edit-label">✦ Edit Details</div>')
+                    edit_mic_in  = gr.Audio(source="microphone", type="filepath", label="Microphone")
+                    edit_text_in = gr.Textbox(
+                        lines=2,
+                        label="Edit Instruction",
+                        placeholder="e.g.  change eyes to blue",
+                    )
+                    with gr.Row():
+                        apply_btn = gr.Button("Apply Edit", elem_id="apply-btn")
+                        reset_btn = gr.Button("Reset",      elem_id="reset-btn")
+
             # ── Right panel — outputs ───────────────────────────────────
             with gr.Column(scale=6, elem_classes=["ef-panel"]):
                 gr.HTML('<div class="ef-section-label">Output</div>')
@@ -517,7 +691,19 @@ def _build_demo(wrapper, cfg):
         gen_btn.click(
             fn=gen,
             inputs=[mic_in, file_in, text_in],
-            outputs=[status_out, text_in, score_out, image_out, stored_image, export_btn, loader_html],
+            outputs=[status_out, text_in, score_out, image_out, stored_image,
+                     export_btn, loader_html, edit_section_col],
+        )
+        apply_btn.click(
+            fn=edit,
+            inputs=[edit_mic_in, edit_text_in],
+            outputs=[status_out, edit_text_in, score_out, image_out, stored_image,
+                     apply_btn, loader_html, edit_section_col],
+        )
+        reset_btn.click(
+            fn=lambda: reset_fn(wrapper),
+            inputs=[],
+            outputs=[image_out, status_out, score_out, stored_image, export_btn],
         )
         export_btn.click(
             fn=exp,

@@ -303,3 +303,178 @@ class StyleCLIPWrapper:
             print(f"\n[CRITICAL ERROR] {e}")
             traceback.print_exc()
             raise
+
+    def edit(
+        self,
+        edit_instruction: str,
+        steps: int = 60,
+        lr: float = 0.05,
+        callback=None,
+    ) -> tuple:
+        """
+        Apply a targeted edit to the current face by optimizing from _current_w.
+
+        Args:
+            edit_instruction: Natural language edit (e.g. "change eyes to blue").
+            steps:            Number of Adam optimisation steps.
+            lr:               Learning rate for Adam.
+            callback:         Optional fn(step, loss, PIL.Image) called every 10 steps.
+
+        Returns:
+            (PIL.Image, float) — updated face image and cosine similarity score.
+
+        Raises:
+            RuntimeError: If generate() has not been called yet.
+        """
+        if self._current_w is None:
+            raise RuntimeError("Generate a face first before editing.")
+
+        # Combined prompt: original description + edit instruction
+        combined_prompt = (
+            f"a photo of a face, {self._original_prompt}, {edit_instruction}"
+        )
+        print(f"[StyleCLIP.edit] Prompt: '{combined_prompt}'")
+
+        # Start from the current (possibly already edited) W+ latent
+        w_opt = self._current_w.clone().requires_grad_(True)
+
+        optimizer = torch.optim.Adam([w_opt], lr=lr)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=steps)
+
+        text_feat = self._encode_text(combined_prompt)  # [1, 512], no grad
+
+        # L2 anchor: current face, not w_avg — keeps identity stable during edit
+        w_anchor = self._current_w.detach()
+
+        best_loss = float("inf")
+        no_improve = 0
+
+        try:
+            for step in range(steps):
+
+                optimizer.zero_grad()
+
+                img_small = self._synthesise_small(w_opt)
+                img_feat  = self._clip_encode_image(img_small.float())
+
+                cos_loss = 1.0 - (img_feat * text_feat).sum(dim=-1).mean()
+                l2_loss  = (w_opt - w_anchor).pow(2).sum().add(1e-8).sqrt()
+
+                loss = cos_loss + 0.05 * l2_loss
+
+                if torch.isnan(loss):
+                    print(f"  ⚠ Edit step {step}: NaN loss, skipping")
+                    optimizer.zero_grad()
+                    continue
+
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_([w_opt], max_norm=1.0)
+                optimizer.step()
+                scheduler.step()
+
+                if loss.item() < best_loss - 0.001:
+                    best_loss = loss.item()
+                    no_improve = 0
+                else:
+                    no_improve += 1
+                if no_improve >= 15:
+                    print(f"  → Early stop at step {step} (no improvement)")
+                    break
+
+                if step % 10 == 0:
+                    print(
+                        f"  → Edit step {step:3d}/{steps} "
+                        f"| CLIP loss: {cos_loss.item():.4f} "
+                        f"| L2: {l2_loss.item():.2f}"
+                    )
+                    if callback is not None:
+                        with torch.no_grad():
+                            preview = self._synthesise_small(w_opt.detach())
+                            pil_preview = Image.fromarray(
+                                (preview[0]
+                                 .permute(1, 2, 0)
+                                 .clamp(0, 1)
+                                 .mul(255)
+                                 .to(torch.uint8)
+                                 .cpu()
+                                 .numpy()),
+                                "RGB",
+                            )
+                        callback(step, loss.item(), pil_preview)
+
+            # Final render at 1024×1024
+            print("[StyleCLIP.edit] Rendering final face (1024×1024) ...")
+            with torch.no_grad():
+                with _quiet():
+                    final_raw = self.G.synthesis(
+                        w_opt.detach(), noise_mode="const", force_fp32=True
+                    )
+                final_raw = (final_raw + 1.0) * 0.5
+                final_raw = torch.nn.functional.interpolate(
+                    final_raw, size=(1024, 1024), mode="bilinear", align_corners=False
+                )
+                final_arr = (
+                    final_raw[0]
+                    .permute(1, 2, 0)
+                    .clamp(0, 1)
+                    .mul(255)
+                    .to(torch.uint8)
+                    .cpu()
+                    .numpy()
+                )
+
+            final_pil = Image.fromarray(final_arr, "RGB")
+            final_sim  = 1.0 - cos_loss.item()
+
+            if callback is not None:
+                callback(steps, final_sim, final_pil)
+
+            # Advance _current_w for cumulative edits
+            self._current_w = w_opt.detach().clone()
+
+            return final_pil, final_sim
+
+        except Exception as e:
+            print(f"\n[CRITICAL ERROR in edit] {e}")
+            traceback.print_exc()
+            raise
+
+    def reset(self) -> tuple:
+        """
+        Restore the face to the state produced by the most recent generate() call.
+
+        Returns:
+            (PIL.Image, float) — original generated face and its CLIP similarity score.
+
+        Raises:
+            RuntimeError: If generate() has not been called yet.
+        """
+        if self._original_w is None:
+            raise RuntimeError("Generate a face first.")
+
+        # Roll back latent to original
+        self._current_w = self._original_w.clone()
+
+        # Single synthesis forward pass — no optimisation
+        print("[StyleCLIP.reset] Rendering original face ...")
+        with torch.no_grad():
+            with _quiet():
+                raw = self.G.synthesis(
+                    self._current_w, noise_mode="const", force_fp32=True
+                )
+            raw = (raw + 1.0) * 0.5
+            raw = torch.nn.functional.interpolate(
+                raw, size=(1024, 1024), mode="bilinear", align_corners=False
+            )
+            arr = (
+                raw[0]
+                .permute(1, 2, 0)
+                .clamp(0, 1)
+                .mul(255)
+                .to(torch.uint8)
+                .cpu()
+                .numpy()
+            )
+
+        pil_image = Image.fromarray(arr, "RGB")
+        return pil_image, self._original_sim

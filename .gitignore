@@ -41,6 +41,7 @@ Thumbs.db
 
 # Claude memory (local only)
 .claude/
+.superpowers/
 CLAUDE.md
 .planning/
 

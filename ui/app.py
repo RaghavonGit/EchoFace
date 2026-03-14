@@ -560,7 +560,7 @@ def edit_fn(mic_audio, edit_text, wrapper, cfg):
             elapsed = time.time() - t_start
             if pil_img is not None:
                 last_img_arr = np.array(pil_img)
-            yield _y(f"Optimizing edit...  step {step} / 60  ({elapsed:.0f}s)",
+            yield _y(f"Optimizing edit...  step {step} / 80  ({elapsed:.0f}s)",
                      edit_instruction, f"Loss: {loss:.4f}",
                      last_img_arr, pil_img, gr.update(visible=False), _LOADER_ON)
 

@@ -307,8 +307,8 @@ class StyleCLIPWrapper:
     def edit(
         self,
         edit_instruction: str,
-        steps: int = 60,
-        lr: float = 0.05,
+        steps: int = 80,
+        lr: float = 0.08,
         callback=None,
     ) -> tuple:
         """
@@ -360,7 +360,9 @@ class StyleCLIPWrapper:
                 cos_loss = 1.0 - (img_feat * text_feat).sum(dim=-1).mean()
                 l2_loss  = (w_opt - w_anchor).pow(2).sum().add(1e-8).sqrt()
 
-                loss = cos_loss + 0.05 * l2_loss
+                # Lower L2 lambda than generate() — we're already in face-space,
+                # so we can afford more freedom to move toward the edit target.
+                loss = cos_loss + 0.008 * l2_loss
 
                 if torch.isnan(loss):
                     print(f"  ⚠ Edit step {step}: NaN loss, skipping")
@@ -377,7 +379,7 @@ class StyleCLIPWrapper:
                     no_improve = 0
                 else:
                     no_improve += 1
-                if no_improve >= 15:
+                if no_improve >= 30:
                     print(f"  → Early stop at step {step} (no improvement)")
                     break
 

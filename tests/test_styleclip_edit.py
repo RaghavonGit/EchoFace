@@ -60,7 +60,7 @@ class TestEdit(unittest.TestCase):
         self.assertIn("Generate a face first", str(ctx.exception))
 
     def test_constructs_combined_prompt(self):
-        """edit() builds: 'a photo of a face, {original_prompt}, {edit_instruction}'."""
+        """edit() builds: 'a photo of a face, {edit_instruction}' (standalone CLIP target)."""
         wrapper = _make_wrapper_with_state()
 
         captured_prompts = []
@@ -86,8 +86,9 @@ class TestEdit(unittest.TestCase):
         self.assertTrue(len(captured_prompts) > 0)
         prompt_used = captured_prompts[0]
         self.assertIn("a photo of a face", prompt_used)
-        self.assertIn("a young man with dark hair", prompt_used)
         self.assertIn("change eyes to blue", prompt_used)
+        # original description should NOT be in the edit prompt (standalone target)
+        self.assertNotIn("a young man with dark hair", prompt_used)
 
     def test_updates_current_w(self):
         """edit() updates _current_w to the optimized latent."""

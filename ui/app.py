@@ -655,8 +655,8 @@ def _build_demo(wrapper, cfg):
                     edit_mic_in  = gr.Audio(source="microphone", type="filepath", label="Microphone")
                     edit_text_in = gr.Textbox(
                         lines=2,
-                        label="Edit Instruction",
-                        placeholder="e.g.  change eyes to blue",
+                        label="Edit Instruction (describe the desired result)",
+                        placeholder="e.g.  blonde hair  |  with a beard  |  older face  |  smiling",
                     )
                     with gr.Row():
                         apply_btn = gr.Button("Apply Edit", elem_id="apply-btn")

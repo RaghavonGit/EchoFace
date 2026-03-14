@@ -329,10 +329,11 @@ class StyleCLIPWrapper:
         if self._current_w is None:
             raise RuntimeError("Generate a face first before editing.")
 
-        # Combined prompt: original description + edit instruction
-        combined_prompt = (
-            f"a photo of a face, {self._original_prompt}, {edit_instruction}"
-        )
+        # Use the edit instruction as a standalone CLIP target.
+        # "a photo of a face, original + change eyes to red" confuses CLIP — it
+        # can't subtract the original description.  A clean positive target
+        # ("a photo of a face with red eyes") gives a much stronger gradient signal.
+        combined_prompt = f"a photo of a face, {edit_instruction}"
         print(f"[StyleCLIP.edit] Prompt: '{combined_prompt}'")
 
         # Start from the current (possibly already edited) W+ latent
@@ -361,9 +362,9 @@ class StyleCLIPWrapper:
                 cos_loss = 1.0 - (img_feat * text_feat).sum(dim=-1).mean()
                 l2_loss  = (w_opt - w_anchor).pow(2).sum().add(1e-8).sqrt()
 
-                # Lower L2 lambda than generate() — we're already in face-space,
-                # so we can afford more freedom to move toward the edit target.
-                loss = cos_loss + 0.008 * l2_loss
+                # L2 anchors to current face to prevent identity drift.
+                # 0.04 keeps changes meaningful but stops the whole face from changing.
+                loss = cos_loss + 0.04 * l2_loss
 
                 if torch.isnan(loss):
                     print(f"  ⚠ Edit step {step}: NaN loss, skipping")

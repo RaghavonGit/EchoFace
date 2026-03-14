@@ -336,7 +336,8 @@ class StyleCLIPWrapper:
         print(f"[StyleCLIP.edit] Prompt: '{combined_prompt}'")
 
         # Start from the current (possibly already edited) W+ latent
-        w_opt = self._current_w.clone().requires_grad_(True)
+        w_start = self._current_w.clone()          # snapshot for diagnostics
+        w_opt   = self._current_w.clone().requires_grad_(True)
 
         optimizer = torch.optim.Adam([w_opt], lr=lr)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=steps)
@@ -403,6 +404,15 @@ class StyleCLIPWrapper:
                                 "RGB",
                             )
                         callback(step, loss.item(), pil_preview)
+
+            # Diagnostics — tells us definitively whether the optimizer moved
+            w_delta = (w_opt.detach() - w_start).abs()
+            print(
+                f"[StyleCLIP.edit] w_opt change — "
+                f"max={w_delta.max().item():.6f}  "
+                f"mean={w_delta.mean().item():.6f}  "
+                f"(zero means grads not flowing)"
+            )
 
             # Final render at 1024×1024
             print("[StyleCLIP.edit] Rendering final face (1024×1024) ...")

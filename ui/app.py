@@ -332,6 +332,22 @@ textarea:focus, input[type=text]:focus {
     border-color: #5a7a9a !important;
     color: #8aaaca !important;
 }
+#dir-btn {
+    background: linear-gradient(135deg, #1a2a6a 0%, #003a88 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #8ab4ff !important;
+    font-family: 'Syne', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    padding: 0.8rem !important;
+    width: 100% !important;
+    cursor: pointer !important;
+    transition: box-shadow 0.25s !important;
+}
+#dir-btn:hover {
+    box-shadow: 0 0 24px rgba(0,100,255,0.3) !important;
+}
 
 /* ── Divider ─────────────────────────────────────────────── */
 .ef-divider {
@@ -591,6 +607,34 @@ def reset_fn(wrapper):
         return (None, str(e), "", None, gr.update(visible=False))
 
 
+# ── Direction function ────────────────────────────────────────────────────────
+
+def direction_fn(attr_name: str, strength: float, wrapper) -> tuple:
+    """
+    Apply a pre-computed W-space direction instantly (no optimization loop).
+
+    Returns 5-element tuple:
+      0  image_out    (np.ndarray)
+      1  status_out   (str)
+      2  score_out    (str)
+      3  stored_image (PIL.Image)
+      4  export_btn   (gr.update)
+    """
+    try:
+        pil_image, sim = wrapper.apply_direction(attr_name, strength)
+        return (
+            np.array(pil_image),
+            f"Direction '{attr_name}' applied (strength {strength:+.1f}).",
+            f"CLIP Score: {sim:.4f}",
+            pil_image,
+            gr.update(visible=True),
+        )
+    except RuntimeError as e:
+        return (None, str(e), "", None, gr.update(visible=False))
+    except (FileNotFoundError, KeyError) as e:
+        return (None, f"Direction error: {e}", "", None, gr.update(visible=False))
+
+
 # ── Export ────────────────────────────────────────────────────────────────────
 
 def export_image(pil_image, outputs_dir=None):
@@ -612,6 +656,16 @@ def _build_demo(wrapper, cfg):
     gen  = functools.partial(generate_fn, wrapper=wrapper, cfg=cfg)
     edit = functools.partial(edit_fn,     wrapper=wrapper, cfg=cfg)
     exp  = functools.partial(export_image)
+
+    # Check whether pre-computed directions are available
+    _dirs_path = os.path.join(PROJECT_ROOT, "checkpoints", "directions.npz")
+    _has_directions = os.path.exists(_dirs_path)
+    _direction_names = []
+    if _has_directions:
+        _direction_names = sorted(np.load(_dirs_path, allow_pickle=False).files)
+        print(f"[EchoFace UI] Found {len(_direction_names)} directions: {_direction_names}")
+    else:
+        print("[EchoFace UI] directions.npz not found — run compute_directions.py first.")
 
 
     with gr.Blocks(title="EchoFace", css=CUSTOM_CSS) as demo:
@@ -663,6 +717,23 @@ def _build_demo(wrapper, cfg):
                         apply_btn = gr.Button("Apply Edit", elem_id="apply-btn")
                         reset_btn = gr.Button("Reset",      elem_id="reset-btn")
 
+                    # ── Instant Directions (hidden until npz is computed) ────
+                    with gr.Column(visible=_has_directions) as dir_col:  # noqa: F841
+                        gr.HTML('<div style="height:0.6rem"></div>')
+                        gr.HTML('<div class="ef-section-label" style="color:#4a7aff !important;">⚡ Instant Directions</div>')
+                        gr.HTML('<div style="font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#1a2a4a;margin-bottom:0.7rem;">No optimization — instant result via pre-computed W directions.</div>')
+                        dir_dropdown = gr.Dropdown(
+                            choices=_direction_names,
+                            value=_direction_names[0] if _direction_names else None,
+                            label="Attribute",
+                            interactive=True,
+                        )
+                        dir_strength = gr.Slider(
+                            minimum=-5.0, maximum=5.0, value=2.0, step=0.5,
+                            label="Strength  (+add  /  −remove)",
+                        )
+                        dir_btn = gr.Button("Apply Direction", elem_id="dir-btn")
+
             # ── Right panel — outputs ───────────────────────────────────
             with gr.Column(scale=6, elem_classes=["ef-panel"]):
                 gr.HTML('<div class="ef-section-label">Output</div>')
@@ -704,6 +775,11 @@ def _build_demo(wrapper, cfg):
         reset_btn.click(
             fn=lambda: reset_fn(wrapper),
             inputs=[],
+            outputs=[image_out, status_out, score_out, stored_image, export_btn],
+        )
+        dir_btn.click(
+            fn=lambda attr, strength: direction_fn(attr, strength, wrapper),
+            inputs=[dir_dropdown, dir_strength],
             outputs=[image_out, status_out, score_out, stored_image, export_btn],
         )
         export_btn.click(

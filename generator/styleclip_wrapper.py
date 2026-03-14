@@ -19,6 +19,7 @@ import traceback
 import contextlib
 
 import torch
+import numpy as np
 import clip
 import torchvision.transforms.functional as TVF
 from PIL import Image
@@ -101,6 +102,12 @@ class StyleCLIPWrapper:
         self._original_prompt: "str | None" = None
         self._original_sim: "float | None" = None
 
+        # ── Directions cache (lazy-loaded from checkpoints/directions.npz) ─────
+        self._directions: "dict | None" = None
+        self._directions_path: str = os.path.join(
+            PROJECT_ROOT, "checkpoints", "directions.npz"
+        )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -146,6 +153,28 @@ class StyleCLIPWrapper:
         img224_norm = ((img224 - mean) / std).float()  # always float32
         feat = self.clip_model.encode_image(img224_norm)
         return (feat / feat.norm(dim=-1, keepdim=True)).float()
+
+    def _load_directions(self) -> dict:
+        """
+        Lazy-load attribute directions from checkpoints/directions.npz.
+        Returns dict mapping attr_name -> torch.Tensor [1, 18, 512].
+        Caches result after first load.
+        """
+        if self._directions is not None:
+            return self._directions
+        if not os.path.exists(self._directions_path):
+            raise FileNotFoundError(
+                f"directions.npz not found at {self._directions_path}. "
+                "Run: python generator/compute_directions.py"
+            )
+        data = np.load(self._directions_path)
+        self._directions = {
+            k: torch.from_numpy(data[k]).unsqueeze(0).to(self.device)
+            for k in data.files
+        }
+        print(f"[StyleCLIPWrapper] Loaded {len(self._directions)} directions: "
+              f"{list(self._directions.keys())}")
+        return self._directions
 
     # ------------------------------------------------------------------
     # Public API (matches DiffusionWrapper signature expected by app.py)
@@ -494,3 +523,63 @@ class StyleCLIPWrapper:
 
         pil_image = Image.fromarray(arr, "RGB")
         return pil_image, self._original_sim
+
+    def apply_direction(self, attr_name: str, strength: float = 2.0) -> tuple:
+        """
+        Apply a pre-computed W-space attribute direction instantly (no optimization).
+
+        Args:
+            attr_name: Key from directions.npz (e.g. "glasses", "older").
+            strength:  Scalar multiplier. Positive = add, negative = remove.
+                       Typical range: 0.5 - 5.0.
+
+        Returns:
+            (PIL.Image, float) — edited face and CLIP similarity score.
+
+        Raises:
+            RuntimeError:      If generate() has not been called yet.
+            FileNotFoundError: If checkpoints/directions.npz does not exist.
+            KeyError:          If attr_name is not in directions.npz.
+        """
+        if self._current_w is None:
+            raise RuntimeError("Generate a face first before applying a direction.")
+
+        directions = self._load_directions()
+        if attr_name not in directions:
+            raise KeyError(
+                f"Direction '{attr_name}' not found. "
+                f"Available: {list(directions.keys())}"
+            )
+
+        direction = directions[attr_name]               # [1, 18, 512]
+        w_edited  = self._current_w + strength * direction
+
+        print(f"[StyleCLIP.apply_direction] '{attr_name}' x {strength:.2f}")
+
+        with torch.no_grad():
+            with _quiet():
+                raw = self.G.synthesis(w_edited, noise_mode="const", force_fp32=True)
+            raw_01 = (raw + 1.0) * 0.5
+            raw_1024 = torch.nn.functional.interpolate(
+                raw_01, size=(1024, 1024), mode="bilinear", align_corners=False
+            )
+            arr = (
+                raw_1024[0]
+                .permute(1, 2, 0)
+                .clamp(0, 1)
+                .mul(255)
+                .to(torch.uint8)
+                .cpu()
+                .numpy()
+            )
+
+        pil_image = Image.fromarray(arr, "RGB")
+
+        with torch.no_grad():
+            img_feat  = self._clip_encode_image(raw_1024)
+            text_feat = self._encode_text(f"a photo of a face, {attr_name}")
+        sim = (img_feat * text_feat).sum(dim=-1).mean().item()
+
+        self._current_w = w_edited.detach().clone()
+
+        return pil_image, sim

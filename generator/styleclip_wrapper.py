@@ -348,7 +348,7 @@ class StyleCLIPWrapper:
         # L2 anchor: current face, not w_avg — keeps identity stable during edit
         w_anchor = self._current_w.detach()
 
-        best_loss = float("inf")
+        best_cos = float("inf")
         no_improve = 0
 
         try:
@@ -376,13 +376,16 @@ class StyleCLIPWrapper:
                 optimizer.step()
                 scheduler.step()
 
-                if loss.item() < best_loss - 0.001:
-                    best_loss = loss.item()
+                # Track only CLIP loss for early stopping — the L2 penalty grows
+                # as w_opt drifts and would otherwise dominate and kill the edit
+                # before the attribute change (e.g. glasses) has time to appear.
+                if cos_loss.item() < best_cos - 0.001:
+                    best_cos = cos_loss.item()
                     no_improve = 0
                 else:
                     no_improve += 1
-                if no_improve >= 30:
-                    print(f"  → Early stop at step {step} (no improvement)")
+                if no_improve >= 40:
+                    print(f"  → Early stop at step {step} (CLIP plateau)")
                     break
 
                 if step % 10 == 0:

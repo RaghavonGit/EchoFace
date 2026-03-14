@@ -652,11 +652,12 @@ def _build_demo(wrapper, cfg):
                 # ── Edit Details — hidden until first generation ─────────
                 with gr.Column(visible=False, elem_id="edit-section") as edit_section_col:
                     gr.HTML('<div class="ef-section-label ef-edit-label">✦ Edit Details</div>')
+                    gr.HTML('<div style="font-family:JetBrains Mono,monospace;font-size:0.62rem;color:#3a5a3a;margin-bottom:0.8rem;line-height:1.6;">Best edits: blonde hair · dark hair · with a beard · much older · smiling · more masculine<br>Hard edits (may not apply): glasses · eye color · accessories</div>')
                     edit_mic_in  = gr.Audio(source="microphone", type="filepath", label="Microphone")
                     edit_text_in = gr.Textbox(
                         lines=2,
-                        label="Edit Instruction — one attribute at a time works best",
-                        placeholder="e.g.  wearing glasses  |  blonde hair  |  with a beard  |  older face",
+                        label="Edit Instruction — one attribute at a time",
+                        placeholder="e.g.  blonde hair  ·  with a beard  ·  much older face  ·  smiling",
                     )
                     with gr.Row():
                         apply_btn = gr.Button("Apply Edit", elem_id="apply-btn")

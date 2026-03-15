@@ -412,5 +412,62 @@ class TestLabConversion(unittest.TestCase):
         self.assertEqual(back.shape, rgb.shape)
 
 
+# ── _shift_iris_lab unit tests ─────────────────────────────────────────────────
+
+class TestShiftIrisLab(unittest.TestCase):
+    """Tests for the Lab-space iris colour replacement."""
+
+    def _grey_face(self, brightness=120):
+        """Uniform 1024×1024 RGB array, all pixels the same grey."""
+        return np.full((1024, 1024, 3), brightness, dtype=np.uint8)
+
+    def test_centre_pixel_changes(self):
+        """The pixel at the iris centre must change colour."""
+        from generator.accessories import _shift_iris_lab
+        arr = self._grey_face(120)
+        # a_tgt=-15, b_tgt=-55 → blueish
+        out = _shift_iris_lab(arr, 340, 480, r=26, a_tgt=-15.0, b_tgt=-55.0)
+        cx, cy = 340, 480
+        self.assertFalse(np.array_equal(arr[cy, cx], out[cy, cx]),
+                         "Centre pixel was not modified")
+
+    def test_far_pixel_unchanged(self):
+        """Pixels far from the iris must not be touched."""
+        from generator.accessories import _shift_iris_lab
+        arr = self._grey_face(120)
+        out = _shift_iris_lab(arr, 340, 480, r=26, a_tgt=-15.0, b_tgt=-55.0)
+        # (0, 0) is hundreds of pixels away
+        np.testing.assert_array_equal(arr[0, 0], out[0, 0])
+
+    def test_input_not_mutated(self):
+        from generator.accessories import _shift_iris_lab
+        arr = self._grey_face(120)
+        orig = arr.copy()
+        _shift_iris_lab(arr, 340, 480, r=26, a_tgt=-15.0, b_tgt=-55.0)
+        np.testing.assert_array_equal(arr, orig)
+
+    def test_output_uint8(self):
+        from generator.accessories import _shift_iris_lab
+        arr = self._grey_face(120)
+        out = _shift_iris_lab(arr, 340, 480, r=26, a_tgt=-15.0, b_tgt=-55.0)
+        self.assertEqual(out.dtype, np.uint8)
+        self.assertEqual(out.shape, arr.shape)
+
+    def test_dark_iris_gets_visible_colour(self):
+        """
+        A very dark iris (brightness ≈ 15/255) should receive visible colour —
+        the old HSV approach returned near-black; Lab preserves some L.
+        """
+        from generator.accessories import _shift_iris_lab
+        arr = self._grey_face(200)                        # bright background
+        cx, cy, r = 340, 480, 26
+        arr[cy - r:cy + r, cx - r:cx + r] = 15           # very dark iris patch
+        out = _shift_iris_lab(arr, cx, cy, r=r, a_tgt=-15.0, b_tgt=-55.0)
+        # Centre pixel must NOT be near-black after blue shift
+        centre = out[cy, cx].astype(float)
+        self.assertGreater(centre[2], 30,
+            "Blue channel too low — Lab replacement failed on dark iris")
+
+
 if __name__ == '__main__':
     unittest.main()

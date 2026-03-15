@@ -22,9 +22,10 @@ Each lens is rendered as two overlapping fills:
 
 Eye colour
 ----------
-A vectorised NumPy hue-shift is applied inside a soft circular mask centred
-on each iris.  The V (brightness) channel is preserved so natural lighting
-is retained; only H and S are replaced with the target colour values.
+Iris chrominance (a, b in CIE Lab) is replaced inside a soft circular mask
+centred on each iris.  The L (lightness) channel is preserved pixel-by-pixel
+so natural lighting is retained.  Dynamic pupil detection (darkest-cluster
+centroid) is used to find the actual iris centre before colouring.
 """
 from __future__ import annotations
 
@@ -191,6 +192,67 @@ def _lab_to_rgb_np(lab: np.ndarray) -> np.ndarray:
     return np.clip(rgb, 0.0, 1.0)
 
 
+# ── Eye-colour Lab target values ──────────────────────────────────────────────
+# Stored as (a, b) in CIE Lab.  L (lightness) is always taken from the
+# original pixel so natural iris shading is preserved.
+_EYE_COLOURS: dict[str, tuple[float, float]] = {
+    "blue":  (-15.0, -55.0),
+    "green": (-38.0,  28.0),
+    "hazel": ( 12.0,  32.0),
+    "grey":  ( -3.0,  -8.0),
+    "brown": ( 18.0,  34.0),
+}
+
+
+def _shift_iris_lab(arr: np.ndarray,
+                    cx: int, cy: int, r: int,
+                    a_tgt: float, b_tgt: float) -> np.ndarray:
+    """
+    Replace the chrominance (a, b in Lab) of one iris while preserving
+    per-pixel lightness (L).  Uses a soft circular alpha mask with quadratic
+    falloff.
+
+    Parameters
+    ----------
+    arr   : (H, W, 3) uint8 RGB array — not mutated.
+    cx,cy : iris centre (pixels).
+    r     : iris radius (pixels).
+    a_tgt, b_tgt : target Lab chrominance values.
+
+    Returns a new uint8 array.
+    """
+    y0 = max(0, cy - r);  y1 = min(arr.shape[0], cy + r)
+    x0 = max(0, cx - r);  x1 = min(arr.shape[1], cx + r)
+
+    patch_u8  = arr[y0:y1, x0:x1]                         # (h, w, 3) uint8
+    patch_f   = patch_u8.astype(np.float32) / 255.0       # [0, 1]
+
+    # Convert to Lab
+    lab = _rgb_to_lab_np(patch_f)                          # (h, w, 3)
+
+    # Build target Lab: keep L, replace a and b
+    lab_tgt       = lab.copy()
+    lab_tgt[..., 1] = a_tgt
+    lab_tgt[..., 2] = b_tgt
+
+    # Convert back to RGB
+    rgb_tgt = _lab_to_rgb_np(lab_tgt)                     # (h, w, 3) float
+
+    # Soft circular alpha mask (quadratic falloff)
+    ys = np.arange(y0, y1, dtype=np.float32) - cy
+    xs = np.arange(x0, x1, dtype=np.float32) - cx
+    xx, yy  = np.meshgrid(xs, ys)
+    dist    = np.sqrt(xx ** 2 + yy ** 2)
+    alpha   = np.clip(1.0 - dist / r, 0.0, 1.0) ** 1.8   # (h, w)
+    alpha3  = alpha[:, :, np.newaxis]                      # (h, w, 1)
+
+    blended = patch_f * (1.0 - alpha3) + rgb_tgt * alpha3  # (h, w, 3)
+
+    out = arr.copy()
+    out[y0:y1, x0:x1] = (blended * 255.0).clip(0, 255).astype(np.uint8)
+    return out
+
+
 def _draw_glasses_2x(style: str) -> Image.Image:
     """
     Render glasses on a transparent 2048×2048 RGBA canvas using the chosen
@@ -305,84 +367,13 @@ def apply_glasses(base: Image.Image, style: str) -> Image.Image:
 # Eye colour
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Target (hue, saturation) in [0, 1].  Value (brightness) is always preserved
-# from the original pixel so lighting looks natural.
-_EYE_COLOURS: dict[str, tuple[float, float]] = {
-    "blue":  (210 / 360, 0.62),
-    "green": (130 / 360, 0.55),
-    "hazel": ( 35 / 360, 0.52),
-    "grey":  (200 / 360, 0.16),
-    "brown": ( 25 / 360, 0.68),
-}
-
-
-def _hsv_to_rgb_np(h: np.ndarray, s: np.ndarray,
-                   v: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Fully vectorised HSV → RGB conversion.
-    All three inputs must be numpy arrays of identical shape, values in [0, 1].
-    """
-    h6 = h * 6.0
-    i  = np.floor(h6).astype(np.int32) % 6
-    f  = h6 - np.floor(h6)
-    p  = v * (1.0 - s)
-    q  = v * (1.0 - s * f)
-    t  = v * (1.0 - s * (1.0 - f))
-
-    r = np.select([i == 0, i == 1, i == 2, i == 3, i == 4, i == 5],
-                  [v,      q,      p,      p,      t,      v])
-    g = np.select([i == 0, i == 1, i == 2, i == 3, i == 4, i == 5],
-                  [t,      v,      v,      q,      p,      p])
-    b = np.select([i == 0, i == 1, i == 2, i == 3, i == 4, i == 5],
-                  [p,      p,      t,      v,      v,      q])
-    return r, g, b
-
-
-def _shift_iris(arr: np.ndarray,
-                cx: int, cy: int, r: int,
-                h_tgt: float, s_tgt: float) -> np.ndarray:
-    """
-    Shift the hue of a single iris region on a (H, W, 3) uint8 array.
-
-    Uses a soft circular mask (quadratic falloff from the centre) so the
-    colour change fades smoothly toward the edge of the iris, avoiding hard
-    boundaries.  The V (brightness) channel is preserved pixel-by-pixel.
-
-    Returns a *new* array; the input is not mutated.
-    """
-    y0 = max(0, cy - r);  y1 = min(arr.shape[0], cy + r)
-    x0 = max(0, cx - r);  x1 = min(arr.shape[1], cx + r)
-
-    patch  = arr[y0:y1, x0:x1].astype(np.float32) / 255.0   # (h, w, 3)
-
-    # Soft circular alpha mask ─────────────────────────────────────────────
-    ys = np.arange(y0, y1, dtype=np.float32) - cy
-    xs = np.arange(x0, x1, dtype=np.float32) - cx
-    xx, yy = np.meshgrid(xs, ys)
-    dist   = np.sqrt(xx ** 2 + yy ** 2)
-    alpha  = np.clip(1.0 - dist / r, 0.0, 1.0) ** 1.8   # quadratic falloff
-    alpha3 = alpha[:, :, np.newaxis]                       # (h, w, 1)
-
-    # Preserve per-pixel brightness ────────────────────────────────────────
-    R, G, B = patch[:, :, 0], patch[:, :, 1], patch[:, :, 2]
-    V = np.maximum(np.maximum(R, G), B)
-
-    # Build target colour at (h_tgt, s_tgt, original V) ───────────────────
-    H_t = np.full_like(V, h_tgt)
-    S_t = np.full_like(V, s_tgt)
-    r_t, g_t, b_t = _hsv_to_rgb_np(H_t, S_t, V)
-    target = np.stack([r_t, g_t, b_t], axis=2)
-
-    blended = patch * (1.0 - alpha3) + target * alpha3
-
-    out              = arr.copy()
-    out[y0:y1, x0:x1] = (blended * 255.0).clip(0, 255).astype(np.uint8)
-    return out
-
-
 def apply_eye_color(base: Image.Image, color: str) -> Image.Image:
     """
-    Shift the iris hue on both eyes of a 1024×1024 FFHQ-aligned face.
+    Shift the iris colour on both eyes of a 1024×1024 FFHQ-aligned face.
+
+    Uses dynamic pupil detection (darkest-cluster centroid) to find the actual
+    iris centre, then replaces chrominance in CIE Lab space so that dark irises
+    receive a visible colour shift (which the old HSV approach could not do).
 
     Parameters
     ----------
@@ -394,10 +385,13 @@ def apply_eye_color(base: Image.Image, color: str) -> Image.Image:
     if color == "none" or color not in _EYE_COLOURS:
         return base.copy()
 
-    h_tgt, s_tgt = _EYE_COLOURS[color]
+    a_tgt, b_tgt = _EYE_COLOURS[color]
     arr = np.array(base.convert("RGB"), dtype=np.uint8)
-    arr = _shift_iris(arr, _L_EYE[0], _L_EYE[1], _IRIS_R, h_tgt, s_tgt)
-    arr = _shift_iris(arr, _R_EYE[0], _R_EYE[1], _IRIS_R, h_tgt, s_tgt)
+
+    for (ex, ey) in (_L_EYE, _R_EYE):
+        cx, cy = _find_iris_centre(arr, ex, ey, _SEARCH_R)
+        arr = _shift_iris_lab(arr, cx, cy, _IRIS_R, a_tgt, b_tgt)
+
     return Image.fromarray(arr, "RGB")
 
 

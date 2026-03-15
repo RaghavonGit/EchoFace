@@ -363,5 +363,54 @@ class TestFindIrisCentre(unittest.TestCase):
         self.assertIsInstance(cy, int)
 
 
+# ── Lab colour-space conversion tests ─────────────────────────────────────────
+
+class TestLabConversion(unittest.TestCase):
+    """Round-trip and known-value tests for RGB↔Lab numpy helpers."""
+
+    def _arr(self, *rgb):
+        """Return a (1,1,3) float32 array from integer RGB values."""
+        return np.array([[[r / 255.0 for r in rgb]]], dtype=np.float32)
+
+    def test_white_to_lab(self):
+        """sRGB white (1,1,1) → Lab L≈100, a≈0, b≈0."""
+        from generator.accessories import _rgb_to_lab_np
+        lab = _rgb_to_lab_np(np.ones((1, 1, 3), dtype=np.float32))
+        self.assertAlmostEqual(float(lab[0, 0, 0]), 100.0, delta=1.0)   # L
+        self.assertAlmostEqual(float(lab[0, 0, 1]),   0.0, delta=2.0)   # a
+        self.assertAlmostEqual(float(lab[0, 0, 2]),   0.0, delta=2.0)   # b
+
+    def test_black_to_lab(self):
+        """sRGB black (0,0,0) → Lab L≈0, a≈0, b≈0."""
+        from generator.accessories import _rgb_to_lab_np
+        lab = _rgb_to_lab_np(np.zeros((1, 1, 3), dtype=np.float32))
+        self.assertAlmostEqual(float(lab[0, 0, 0]), 0.0, delta=1.0)
+        self.assertAlmostEqual(float(lab[0, 0, 1]), 0.0, delta=2.0)
+        self.assertAlmostEqual(float(lab[0, 0, 2]), 0.0, delta=2.0)
+
+    def test_round_trip(self):
+        """RGB → Lab → RGB recovers original within 1/255 error."""
+        from generator.accessories import _rgb_to_lab_np, _lab_to_rgb_np
+        original = np.array([[[0.4, 0.2, 0.7],
+                               [0.9, 0.1, 0.3]]], dtype=np.float32)
+        recovered = _lab_to_rgb_np(_rgb_to_lab_np(original))
+        np.testing.assert_allclose(recovered, original, atol=1/255.0)
+
+    def test_blue_has_negative_b(self):
+        """Pure blue in Lab should have strongly negative b axis."""
+        from generator.accessories import _rgb_to_lab_np
+        blue = np.array([[[0.0, 0.0, 1.0]]], dtype=np.float32)
+        lab = _rgb_to_lab_np(blue)
+        self.assertLess(float(lab[0, 0, 2]), -50.0)   # b should be very negative
+
+    def test_output_shapes_preserved(self):
+        from generator.accessories import _rgb_to_lab_np, _lab_to_rgb_np
+        rgb = np.random.rand(16, 16, 3).astype(np.float32)
+        lab = _rgb_to_lab_np(rgb)
+        self.assertEqual(lab.shape, rgb.shape)
+        back = _lab_to_rgb_np(lab)
+        self.assertEqual(back.shape, rgb.shape)
+
+
 if __name__ == '__main__':
     unittest.main()

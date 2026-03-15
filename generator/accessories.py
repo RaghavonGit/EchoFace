@@ -123,6 +123,74 @@ def _find_iris_centre(arr: np.ndarray,
     return cx, cy
 
 
+# ── CIE Lab colour-space conversion (pure numpy, D65 illuminant) ──────────────
+
+def _rgb_to_lab_np(rgb_f: np.ndarray) -> np.ndarray:
+    """
+    sRGB float32 [..., 3] in [0, 1]  →  CIE Lab float32 [..., 3].
+    L in [0, 100],  a/b in roughly [-128, 128].
+    """
+    # Step 1: gamma expand (linearise)
+    mask = rgb_f > 0.04045
+    lin  = np.where(mask,
+                    ((rgb_f + 0.055) / 1.055) ** 2.4,
+                    rgb_f / 12.92)
+
+    # Step 2: linear sRGB → XYZ (D65)
+    M = np.array([[0.4124564, 0.3575761, 0.1804375],
+                  [0.2126729, 0.7151522, 0.0721750],
+                  [0.0193339, 0.1191920, 0.9503041]], dtype=np.float32)
+    xyz = lin @ M.T                                   # [..., 3]
+
+    # Step 3: normalise by D65 white point
+    white = np.array([0.95047, 1.00000, 1.08883], dtype=np.float32)
+    xyz   = xyz / white
+
+    # Step 4: f function
+    delta  = 6.0 / 29.0
+    delta3 = delta ** 3
+    coeff  = 1.0 / (3.0 * delta ** 2)
+    f = np.where(xyz > delta3,
+                 xyz ** (1.0 / 3.0),
+                 coeff * xyz + (4.0 / 29.0))
+
+    L = 116.0 * f[..., 1] - 16.0
+    a = 500.0 * (f[..., 0] - f[..., 1])
+    b = 200.0 * (f[..., 1] - f[..., 2])
+    return np.stack([L, a, b], axis=-1)
+
+
+def _lab_to_rgb_np(lab: np.ndarray) -> np.ndarray:
+    """
+    CIE Lab float32 [..., 3]  →  sRGB float32 [..., 3] clipped to [0, 1].
+    """
+    L, a, b = lab[..., 0], lab[..., 1], lab[..., 2]
+    fy = (L + 16.0) / 116.0
+    fx = a / 500.0 + fy
+    fz = fy - b / 200.0
+
+    delta  = 6.0 / 29.0
+    delta2 = delta ** 2
+    def _f_inv(t):
+        return np.where(t > delta, t ** 3, 3.0 * delta2 * (t - 4.0 / 29.0))
+
+    white = np.array([0.95047, 1.00000, 1.08883], dtype=np.float32)
+    xyz   = np.stack([_f_inv(fx), _f_inv(fy), _f_inv(fz)], axis=-1) * white
+
+    # XYZ → linear sRGB
+    M_inv = np.array([[ 3.2404542, -1.5371385, -0.4985314],
+                      [-0.9692660,  1.8760108,  0.0415560],
+                      [ 0.0556434, -0.2040259,  1.0572252]], dtype=np.float32)
+    lin = np.clip(xyz @ M_inv.T, 0.0, 1.0)
+
+    # Gamma compress
+    mask = lin > 0.0031308
+    rgb  = np.where(mask,
+                    1.055 * lin ** (1.0 / 2.4) - 0.055,
+                    12.92 * lin)
+    return np.clip(rgb, 0.0, 1.0)
+
+
 def _draw_glasses_2x(style: str) -> Image.Image:
     """
     Render glasses on a transparent 2048×2048 RGBA canvas using the chosen

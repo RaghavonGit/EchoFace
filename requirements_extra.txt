@@ -24,5 +24,8 @@ sounddevice>=0.4.4      # Microphone input for Gradio
 # ── UI ────────────────────────────────────────────────────────────────────
 gradio>=3.40,<4.0       # Gradio 4.x requires Python 3.10+; pinned to 3.x
 
+# ── Landmarks / Accessories ───────────────────────────────────────────────
+face-alignment>=1.4.1   # 68-point 2D facial landmark detection
+
 # ── Numerical ─────────────────────────────────────────────────────────────
 numpy<1.24              # numpy >=1.24 breaks librosa and several StyleGAN deps

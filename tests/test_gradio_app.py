@@ -265,18 +265,19 @@ class TestApplyAccessories(unittest.TestCase):
         self.assertEqual(before.tolist(), np.array(face).tolist())
 
     def test_apply_glasses_modifies_frame_region(self):
-        """Glasses frame pixels must differ from the plain face."""
-        from generator.accessories import apply_glasses, _L_EYE
+        """Glasses frame pixels must differ from the plain face somewhere in the eye area."""
+        from generator.accessories import apply_glasses
         face   = self._face()
         result = apply_glasses(face, "round")
         arr_f  = np.array(face)
         arr_r  = np.array(result)
-        # Sample near the left eye position — frame ring should be dark
-        lx, ly = _L_EYE
-        patch_result = arr_r[ly - 5:ly + 5, lx - 5:lx + 5]
-        patch_face   = arr_f[ly - 5:ly + 5, lx - 5:lx + 5]
-        self.assertFalse(np.array_equal(patch_result, patch_face),
-                         "Frame area unchanged — glasses not rendered")
+        # PNG-based renderer places the frame in the upper half of the face
+        # (rows 288-535, cols 182-840 for FFHQ fallback).  Assert at least
+        # one pixel in the broad eye band is modified.
+        diff = ~(arr_r == arr_f).all(axis=2)
+        eye_band = diff[280:540, 180:850]
+        self.assertTrue(eye_band.any(),
+                        "Frame area unchanged — glasses not rendered")
 
     def test_apply_eye_color_none_equals_copy(self):
         from generator.accessories import apply_eye_color
@@ -552,6 +553,184 @@ class TestGlassesOverlayLandmarks(unittest.TestCase):
         face   = self._face()
         result = apply_lens_tint(face, self._lms(), "none")
         np.testing.assert_array_equal(np.array(result), np.array(face))
+
+
+class TestApplyEyeColorWithLandmarks(unittest.TestCase):
+
+    def _face(self, size=1024):
+        return Image.new("RGB", (size, size), (120, 80, 60))
+
+    def _lms(self):
+        return {
+            "left_iris_center":        [335.0, 480.0],
+            "right_iris_center":       [685.0, 480.0],
+            "interpupillary_distance": 350.0,
+            "nose_bridge_top":         [512.0, 390.0],
+            "nose_bridge_bottom":      [512.0, 530.0],
+            "left_brow_peak":          [330.0, 420.0],
+            "right_brow_peak":         [690.0, 420.0],
+            "left_face_edge":          [100.0, 800.0],
+            "right_face_edge":         [900.0, 800.0],
+            "chin":                    [512.0, 900.0],
+            "jaw_outline":             [[100 + i*50, 800] for i in range(17)],
+        }
+
+    def test_none_color_returns_copy_unchanged(self):
+        from generator.accessories import apply_eye_color
+        face   = self._face()
+        result = apply_eye_color(face, "none", self._lms())
+        np.testing.assert_array_equal(np.array(result), np.array(face))
+
+    def test_unknown_color_returns_copy_unchanged(self):
+        from generator.accessories import apply_eye_color
+        face   = self._face()
+        result = apply_eye_color(face, "purple", self._lms())
+        np.testing.assert_array_equal(np.array(result), np.array(face))
+
+    def test_apply_changes_pixels_at_iris_coords(self):
+        from generator.accessories import apply_eye_color
+        # Dark patch at landmark iris centre simulates the iris
+        face_arr = np.full((1024, 1024, 3), (120, 80, 60), dtype=np.uint8)
+        cx, cy   = 335, 480
+        face_arr[cy-15:cy+15, cx-15:cx+15] = (30, 20, 15)   # dark patch (iris-sized)
+        face  = Image.fromarray(face_arr)
+        result = apply_eye_color(face, "blue", self._lms())
+        result_arr = np.array(result)
+        self.assertFalse(
+            np.array_equal(face_arr[cy-5:cy+5, cx-5:cx+5],
+                           result_arr[cy-5:cy+5, cx-5:cx+5]),
+            "Eye colour must change pixels at the landmark iris centre",
+        )
+
+    def test_output_is_rgb_same_size(self):
+        from generator.accessories import apply_eye_color
+        face   = self._face()
+        result = apply_eye_color(face, "green", self._lms())
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, face.size)
+
+    def test_fallback_when_landmarks_none_does_not_raise(self):
+        from generator.accessories import apply_eye_color
+        face   = self._face()
+        result = apply_eye_color(face, "hazel", None)
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, face.size)
+
+    def test_fallback_when_landmarks_none_changes_pixels(self):
+        """Fallback must actually apply colour at FFHQ hardcoded coords."""
+        from generator.accessories import apply_eye_color
+        face_arr = np.full((1024, 1024, 3), (120, 80, 60), dtype=np.uint8)
+        # Dark patch at FFHQ fallback left-eye (340, 480)
+        face_arr[460:500, 320:360] = (30, 20, 15)
+        face   = Image.fromarray(face_arr)
+        result = apply_eye_color(face, "blue", None)
+        diff   = np.abs(np.array(result).astype(int) - face_arr.astype(int))
+        self.assertGreater(diff.sum(), 0, "Fallback should modify pixels near FFHQ iris coords")
+
+    def test_input_not_mutated(self):
+        from generator.accessories import apply_eye_color
+        face     = self._face()
+        original = np.array(face).copy()
+        apply_eye_color(face, "grey", self._lms())
+        np.testing.assert_array_equal(np.array(face), original)
+
+
+class TestApplyGlassesWrapper(unittest.TestCase):
+
+    def _face(self):
+        return Image.new("RGB", (1024, 1024), (180, 140, 110))
+
+    def _lms(self):
+        return {
+            "left_iris_center":        [335.0, 480.0],
+            "right_iris_center":       [685.0, 480.0],
+            "interpupillary_distance": 350.0,
+            "nose_bridge_top":         [512.0, 390.0],
+            "nose_bridge_bottom":      [512.0, 530.0],
+            "left_brow_peak":          [330.0, 420.0],
+            "right_brow_peak":         [690.0, 420.0],
+            "left_face_edge":          [100.0, 800.0],
+            "right_face_edge":         [900.0, 800.0],
+            "chin":                    [512.0, 900.0],
+            "jaw_outline":             [[100 + i*50, 800] for i in range(17)],
+        }
+
+    def test_none_style_returns_identical_copy(self):
+        from generator.accessories import apply_glasses
+        face   = self._face()
+        result = apply_glasses(face, "none", "original", "none", self._lms())
+        np.testing.assert_array_equal(np.array(result), np.array(face))
+
+    def test_returns_rgb_same_size_when_asset_present(self):
+        from generator.accessories import apply_glasses
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, "assets", "glasses", "wayfarer.png")
+        if not os.path.exists(path):
+            self.skipTest("wayfarer.png not found — run Task 4")
+        result = apply_glasses(self._face(), "wayfarer", "black", "grey", self._lms())
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (1024, 1024))
+
+    def test_unknown_style_returns_identical_copy(self):
+        from generator.accessories import apply_glasses
+        face   = self._face()
+        result = apply_glasses(face, "monocle", "original", "none", self._lms())
+        np.testing.assert_array_equal(np.array(result), np.array(face))
+
+
+class TestApplyAccessoriesPipeline(unittest.TestCase):
+
+    def _face(self):
+        return Image.new("RGB", (1024, 1024), (150, 120, 90))
+
+    def _lms(self):
+        return {
+            "left_iris_center":        [335.0, 480.0],
+            "right_iris_center":       [685.0, 480.0],
+            "interpupillary_distance": 350.0,
+            "nose_bridge_top":         [512.0, 390.0],
+            "nose_bridge_bottom":      [512.0, 530.0],
+            "left_brow_peak":          [330.0, 420.0],
+            "right_brow_peak":         [690.0, 420.0],
+            "left_face_edge":          [100.0, 800.0],
+            "right_face_edge":         [900.0, 800.0],
+            "chin":                    [512.0, 900.0],
+            "jaw_outline":             [[100 + i*50, 800] for i in range(17)],
+        }
+
+    def test_all_none_returns_identical_copy(self):
+        from generator.accessories import apply_accessories
+        face   = self._face()
+        result = apply_accessories(face, None,
+                                   glasses="none", frame_color="original",
+                                   lens_tint="none", eye_color="none")
+        np.testing.assert_array_equal(np.array(result), np.array(face))
+
+    def test_returns_rgb_same_size(self):
+        from generator.accessories import apply_accessories
+        face   = self._face()
+        result = apply_accessories(face, self._lms(),
+                                   glasses="none", frame_color="original",
+                                   lens_tint="none", eye_color="blue")
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, face.size)
+
+    def test_eye_color_applied_changes_result_vs_no_color(self):
+        """Eye colour changes must produce a different image than no accessories."""
+        from generator.accessories import apply_accessories
+        face_arr = np.full((1024, 1024, 3), (120, 80, 60), dtype=np.uint8)
+        face_arr[460:500, 320:360] = (30, 20, 15)   # dark patch at FFHQ L-eye
+        face = Image.fromarray(face_arr)
+        no_color = apply_accessories(face, None,
+                                     glasses="none", frame_color="original",
+                                     lens_tint="none", eye_color="none")
+        with_color = apply_accessories(face, None,
+                                       glasses="none", frame_color="original",
+                                       lens_tint="none", eye_color="blue")
+        diff = np.abs(np.array(with_color).astype(int) -
+                      np.array(no_color).astype(int))
+        self.assertGreater(diff.sum(), 0,
+                           "Eye colour must produce pixel changes vs. no accessories")
 
 
 if __name__ == '__main__':

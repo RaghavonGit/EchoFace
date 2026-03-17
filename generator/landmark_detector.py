@@ -31,7 +31,7 @@ def _get_fa():
     if _fa_instance is None:
         import face_alignment
         cfg    = gpu_utils.get_device_config()
-        device = "cuda" if cfg.get("use_fp16") else "cpu"
+        device = cfg["device"].type   # "cuda" or "cpu" — single source of truth
         try:
             lm_type = face_alignment.LandmarksType._2D
         except AttributeError:

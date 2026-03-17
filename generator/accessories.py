@@ -171,16 +171,21 @@ def apply_eye_color(base: Image.Image,
             "using FFHQ fallback coordinates for eye colour"
         )
         eye_centres = [_FFHQ_L_EYE, _FFHQ_R_EYE]
+        iris_radii  = [_IRIS_R, _IRIS_R]
     else:
         li = landmarks["left_iris_center"]
         ri = landmarks["right_iris_center"]
         eye_centres = [(int(li[0]), int(li[1])), (int(ri[0]), int(ri[1]))]
+        iris_radii  = [
+            max(8, int(landmarks.get("left_iris_radius",  _IRIS_R))),
+            max(8, int(landmarks.get("right_iris_radius", _IRIS_R))),
+        ]
 
     a_tgt, b_tgt = _EYE_COLOURS[color]
     arr = np.array(base.convert("RGB"), dtype=np.uint8)
 
-    for (cx, cy) in eye_centres:
-        arr = _shift_iris_lab(arr, cx, cy, _IRIS_R, a_tgt, b_tgt)
+    for (cx, cy), r in zip(eye_centres, iris_radii):
+        arr = _shift_iris_lab(arr, cx, cy, r, a_tgt, b_tgt)
 
     return Image.fromarray(arr, "RGB")
 

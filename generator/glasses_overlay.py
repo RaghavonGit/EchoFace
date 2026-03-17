@@ -51,6 +51,46 @@ def _crop_to_frame(img: Image.Image, dark_thresh: int = 120, pad: int = 14) -> I
     return img.crop((c0, r0, c1 + 1, r1 + 1))
 
 
+def _crop_transparent_rgba(img: Image.Image, pad: int = 6) -> Image.Image:
+    """Crop RGBA image to bounding box of opaque pixels, with small padding."""
+    arr = np.array(img, dtype=np.uint8)
+    opaque = arr[:, :, 3] > 10
+    rows = np.any(opaque, axis=1)
+    cols = np.any(opaque, axis=0)
+    if not rows.any():
+        return img
+    h, w = arr.shape[:2]
+    r0 = max(0,   int(np.argmax(rows))              - pad)
+    r1 = min(h-1, int(len(rows) - 1 - np.argmax(rows[::-1])) + pad)
+    c0 = max(0,   int(np.argmax(cols))              - pad)
+    c1 = min(w-1, int(len(cols) - 1 - np.argmax(cols[::-1])) + pad)
+    return img.crop((c0, r0, c1 + 1, r1 + 1))
+
+
+def _estimate_lens_centre_frac(rgba_arr: np.ndarray) -> float:
+    """Estimate inter-lens-centre fraction from a cropped RGBA array."""
+    H, W = rgba_arr.shape[:2]
+    mid = W // 2
+    opaque = rgba_arr[:, :, 3] > 32
+
+    left_mask  = opaque[:, :mid]
+    right_mask = opaque[:, mid:]
+
+    if left_mask.any():
+        col_indices = np.where(left_mask.any(axis=0))[0]
+        left_cx = float(col_indices.mean()) / W
+    else:
+        left_cx = 0.25
+
+    if right_mask.any():
+        col_indices = np.where(right_mask.any(axis=0))[0]
+        right_cx = float(mid + col_indices.mean()) / W
+    else:
+        right_cx = 0.75
+
+    return max(0.10, right_cx - left_cx)
+
+
 def _make_frame_alpha(img: Image.Image) -> Image.Image:
     """Return RGBA. Skips darkness extraction if image is already RGBA."""
     if img.mode == "RGBA":
@@ -169,15 +209,14 @@ def overlay_glasses_with_landmarks(face_img:     Image.Image,
     eye_span = max(right_outer[0] - left_outer[0], 1)
 
     glasses_src = Image.open(glasses_path)
-    if glasses_src.mode != "RGBA":
+    if glasses_src.mode == "RGBA":
+        glasses_src = _crop_transparent_rgba(glasses_src)
+    else:
         glasses_src = _crop_to_frame(glasses_src.convert("RGB"))
     glasses_rgba = _make_frame_alpha(glasses_src)
 
-    # The PNG canvas has lens centres at 28 % and 72 % of its width,
-    # so the lens-to-lens fraction is 0.44.  Scale so that eye_span maps
-    # exactly onto the inter-lens distance in the PNG.
-    _LENS_CENTRE_FRAC = 0.44
-    g_w    = min(int(eye_span / _LENS_CENTRE_FRAC), int(fw * 0.90))
+    lens_frac = _estimate_lens_centre_frac(np.array(glasses_rgba, dtype=np.uint8))
+    g_w    = min(int(eye_span / lens_frac), int(fw * 0.90))
     aspect = glasses_rgba.height / max(glasses_rgba.width, 1)
     g_h    = int(g_w * aspect)
     glasses_rgba = glasses_rgba.resize((g_w, g_h), Image.LANCZOS)

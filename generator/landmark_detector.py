@@ -61,12 +61,22 @@ def detect_landmarks(pil_image: Image.Image) -> dict | None:
     def _pt(i: int) -> list[float]:
         return [float(lms[i, 0]), float(lms[i, 1])]
 
-    def _centroid(indices) -> list[float]:
+    def _bbox_center(indices) -> list[float]:
+        """Midpoint of bounding box — less biased than centroid for asymmetric eye outlines."""
         pts = lms[indices]
-        return [float(pts[:, 0].mean()), float(pts[:, 1].mean())]
+        cx = float((pts[:, 0].min() + pts[:, 0].max()) / 2)
+        cy = float((pts[:, 1].min() + pts[:, 1].max()) / 2)
+        return [cx, cy]
 
-    left_iris  = _centroid(list(range(36, 42)))
-    right_iris = _centroid(list(range(42, 48)))
+    def _eye_radius(indices) -> float:
+        """Iris radius ≈ 40 % of eye-outline horizontal span."""
+        pts = lms[indices]
+        return float((pts[:, 0].max() - pts[:, 0].min()) * 0.40)
+
+    left_iris  = _bbox_center(list(range(36, 42)))
+    right_iris = _bbox_center(list(range(42, 48)))
+    left_r     = _eye_radius(list(range(36, 42)))
+    right_r    = _eye_radius(list(range(42, 48)))
     ipd = math.sqrt(
         (right_iris[0] - left_iris[0]) ** 2 +
         (right_iris[1] - left_iris[1]) ** 2
@@ -75,6 +85,8 @@ def detect_landmarks(pil_image: Image.Image) -> dict | None:
     return {
         "left_iris_center":        left_iris,
         "right_iris_center":       right_iris,
+        "left_iris_radius":        left_r,
+        "right_iris_radius":       right_r,
         "nose_bridge_top":         _pt(27),
         "nose_bridge_bottom":      _pt(30),
         "left_brow_peak":          _pt(19),

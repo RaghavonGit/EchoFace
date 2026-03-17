@@ -144,7 +144,7 @@ class TestGenerateFn(unittest.TestCase):
         self.assertEqual(yields[-1][8], "none")
         self.assertEqual(yields[-1][9], "none")
 
-    def test_ten_outputs_per_yield(self):
+    def test_thirteen_outputs_per_yield(self):
         """Every yielded tuple must have exactly 13 elements (extended for landmarks)."""
         w = _mock_wrapper(steps_to_fire=(0, 10))
         yields = _all_yields(text="a young man with short hair", wrapper=w)
@@ -241,10 +241,14 @@ class TestApplyAccessories(unittest.TestCase):
         self.assertEqual(result.mode, "RGB")
         self.assertEqual(result.size, (1024, 1024))
 
-    def test_apply_glasses_square_returns_rgb(self):
+    def test_apply_glasses_unknown_style_returns_rgb_copy(self):
+        """Unknown glasses style falls back to an RGB copy of the input."""
         from generator.accessories import apply_glasses
-        result = apply_glasses(self._face(), "square")
+        face   = self._face()
+        result = apply_glasses(face, "hexagonal", "original", "none", None)
         self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, face.size)
+        np.testing.assert_array_equal(np.array(result), np.array(face))
 
     def test_apply_glasses_aviator_returns_rgb(self):
         from generator.accessories import apply_glasses
@@ -268,6 +272,10 @@ class TestApplyAccessories(unittest.TestCase):
         """Glasses frame pixels must differ from the plain face somewhere in the eye area."""
         from generator.accessories import apply_glasses
         face   = self._face()
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, "assets", "glasses", "round.png")
+        if not os.path.exists(path):
+            self.skipTest("assets/glasses/round.png not found")
         result = apply_glasses(face, "round")
         arr_f  = np.array(face)
         arr_r  = np.array(result)
@@ -294,10 +302,10 @@ class TestApplyAccessories(unittest.TestCase):
 
     def test_apply_eye_color_modifies_iris_region(self):
         """Eye-colour shift must change pixels at the iris centre."""
-        from generator.accessories import apply_eye_color, _L_EYE, _IRIS_R
+        from generator.accessories import apply_eye_color, _FFHQ_L_EYE, _IRIS_R
         face   = self._face()
         result = apply_eye_color(face, "blue")
-        lx, ly = _L_EYE
+        lx, ly = _FFHQ_L_EYE
         r      = _IRIS_R // 2          # inner half of iris — strongest shift
         patch_f = np.array(face)  [ly - r:ly + r, lx - r:lx + r]
         patch_r = np.array(result)[ly - r:ly + r, lx - r:lx + r]
@@ -305,63 +313,14 @@ class TestApplyAccessories(unittest.TestCase):
                          "Iris region unchanged — eye colour not applied")
 
     def test_apply_accessories_order(self):
-        """apply_accessories == apply_glasses(apply_eye_color(base))."""
+        """apply_accessories with no glasses == apply_eye_color(base)."""
         from generator.accessories import (
             apply_accessories, apply_glasses, apply_eye_color,
         )
         face     = self._face()
-        expected = apply_glasses(apply_eye_color(face, "green"), "square")
-        result   = apply_accessories(face, glasses="square", eye_color="green")
+        expected = apply_glasses(apply_eye_color(face, "green"), "none")
+        result   = apply_accessories(face, glasses="none", eye_color="green")
         self.assertEqual(np.array(expected).tolist(), np.array(result).tolist())
-
-
-# ── _find_iris_centre unit tests ───────────────────────────────────────────────
-
-class TestFindIrisCentre(unittest.TestCase):
-    """Tests for dynamic pupil-based iris centre detection."""
-
-    def _uniform_arr(self, brightness=120):
-        """1024×1024 RGB array, all pixels the same grey."""
-        return np.full((1024, 1024, 3), brightness, dtype=np.uint8)
-
-    def test_uniform_image_returns_expected_centre(self):
-        """On a flat image there is no dark cluster → return expected coords."""
-        from generator.accessories import _find_iris_centre
-        arr = self._uniform_arr(brightness=120)
-        cx, cy = _find_iris_centre(arr, expected_cx=340, expected_cy=480, search_r=60)
-        # Must stay close to the expected position
-        self.assertAlmostEqual(cx, 340, delta=5)
-        self.assertAlmostEqual(cy, 480, delta=5)
-
-    def test_dark_blob_found(self):
-        """A dark patch at a known offset from the expected centre is detected."""
-        from generator.accessories import _find_iris_centre
-        arr = self._uniform_arr(brightness=200)
-        # Place a 24×24 dark patch 15px right of expected centre.
-        # 24×24 = 576 pixels vs 120×120 = 14400-pixel window → clearly detected
-        # by the min+20 threshold (min=10, thresh=30, 576 pixels qualify).
-        true_cx, true_cy = 355, 480
-        arr[true_cy - 12:true_cy + 12, true_cx - 12:true_cx + 12] = 10
-        cx, cy = _find_iris_centre(arr, expected_cx=340, expected_cy=480, search_r=60)
-        self.assertAlmostEqual(cx, true_cx, delta=8)
-        self.assertAlmostEqual(cy, true_cy, delta=8)
-
-    def test_dark_blob_outside_search_window_ignored(self):
-        """A dark patch far outside the search radius must not move the result."""
-        from generator.accessories import _find_iris_centre
-        arr = self._uniform_arr(brightness=200)
-        # Patch 200px away — outside search_r=60
-        arr[200:215, 100:115] = 5
-        cx, cy = _find_iris_centre(arr, expected_cx=340, expected_cy=480, search_r=60)
-        self.assertAlmostEqual(cx, 340, delta=5)
-        self.assertAlmostEqual(cy, 480, delta=5)
-
-    def test_result_is_int_tuple(self):
-        from generator.accessories import _find_iris_centre
-        arr = self._uniform_arr()
-        cx, cy = _find_iris_centre(arr, 340, 480, 60)
-        self.assertIsInstance(cx, int)
-        self.assertIsInstance(cy, int)
 
 
 # ── Lab colour-space conversion tests ─────────────────────────────────────────

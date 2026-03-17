@@ -16,6 +16,7 @@ TK      = 14
 
 
 def _supersampled(fn, w=W, h=H):
+    """Render at 2× then LANCZOS-downsample for antialiased edges."""
     big = Image.new("RGBA", (w * 2, h * 2), (0, 0, 0, 0))
     fn(big)
     return big.resize((w, h), Image.LANCZOS)

@@ -121,7 +121,7 @@ def colorize_frame(rgba_array: np.ndarray, color_name: str) -> np.ndarray:
         return out
 
     if color_name == "tortoise":
-        rng = np.random.default_rng(seed=42)
+        rng = np.random.default_rng()
         H, W = out.shape[:2]
         noise = rng.uniform(0.6, 1.0, size=(H, W))
         for ch, base in enumerate((120, 60, 20)):
@@ -132,6 +132,7 @@ def colorize_frame(rgba_array: np.ndarray, color_name: str) -> np.ndarray:
 
     colour = _FRAME_COLOURS.get(color_name)
     if colour is None:
+        warnings.warn(f"[EchoFace] Unknown frame color '{color_name}' — returning unchanged.")
         return out
 
     for ch, val in enumerate(colour):
@@ -150,6 +151,8 @@ def apply_lens_tint(face_img: Image.Image,
     """
     tint = _LENS_TINTS.get(tint_color)
     if tint is None:
+        if tint_color not in _LENS_TINTS:
+            warnings.warn(f"[EchoFace] Unknown lens tint '{tint_color}' — no tint applied.")
         return face_img.copy()
 
     r, g, b, a_val = tint
@@ -218,7 +221,7 @@ def overlay_glasses_with_landmarks(face_img:     Image.Image,
     glasses_rgba = _make_frame_alpha(glasses_src)
 
     h_pad  = int(eye_span * 0.20)
-    g_w    = eye_span + 2 * h_pad
+    g_w    = min(eye_span + 2 * h_pad, int(fw * 0.90))
     aspect = glasses_rgba.height / max(glasses_rgba.width, 1)
     g_h    = int(g_w * aspect)
     glasses_rgba = glasses_rgba.resize((g_w, g_h), Image.LANCZOS)

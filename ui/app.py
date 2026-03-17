@@ -391,7 +391,7 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
             elapsed = time.time() - t_start
             if pil_img is not None:
                 last_img_arr = np.array(pil_img)
-            yield _y(f"Optimizing...  step {step} / 45  ({elapsed:.0f}s)",
+            yield _y(f"Optimizing...  step {step} / 60  ({elapsed:.0f}s)",
                      prompt, f"Loss: {loss:.4f}",
                      last_img_arr, pil_img, gr.update(visible=False), _LOADER_ON)
 

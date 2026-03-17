@@ -39,11 +39,6 @@ _IRIS_R = 26          # iris colour-shift radius (px)
 _FFHQ_L_EYE = (340, 480)
 _FFHQ_R_EYE = (684, 480)
 
-# Backward-compatible aliases (used by legacy tests)
-_L_EYE = _FFHQ_L_EYE
-_R_EYE = _FFHQ_R_EYE
-_EYE_SPAN = _R_EYE[0] - _L_EYE[0]   # 344 px  centre-to-centre
-
 # Map: UI style name → PNG filename in assets/glasses/
 _GLASSES_FILES: dict[str, str] = {
     "aviator":    "aviator.png",
@@ -57,10 +52,6 @@ _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "assets", "glasses",
 )
-
-# ── Search radius for dynamic pupil detection ─────────────────────────────────
-_SEARCH_R = 60   # px — window around expected eye position to scan
-
 
 # ── CIE Lab colour-space conversion (pure numpy, D65 illuminant) ──────────────
 
@@ -120,50 +111,6 @@ _EYE_COLOURS: dict[str, tuple[float, float]] = {
     "grey":  ( -3.0,  -8.0),
     "brown": ( 18.0,  34.0),
 }
-
-
-def _find_iris_centre(arr: np.ndarray,
-                      expected_cx: int, expected_cy: int,
-                      search_r: int = _SEARCH_R) -> tuple:
-    """
-    Find the iris centre by locating the darkest pixel cluster in a search
-    window around the expected position.
-
-    Works on any RGB uint8 numpy array.  Falls back to the expected coordinates
-    on uniform / featureless images (e.g. test mocks).
-
-    Returns
-    -------
-    (cx, cy) : tuple of int
-    """
-    h, w = arr.shape[:2]
-    y0 = max(0, expected_cy - search_r)
-    y1 = min(h,  expected_cy + search_r)
-    x0 = max(0, expected_cx - search_r)
-    x1 = min(w,  expected_cx + search_r)
-
-    patch = arr[y0:y1, x0:x1]                        # (sh, sw, 3)
-    grey  = patch.mean(axis=2)                        # (sh, sw)  brightness
-
-    # Find the absolute minimum brightness in the window.
-    # If the minimum is bright (> 100), no dark pupil exists — return expected.
-    min_val = float(grey.min())
-    if min_val > 100:
-        return expected_cx, expected_cy
-
-    # Threshold: anything within +20 of the minimum (captures the pupil cluster).
-    thresh = min_val + 20.0
-    mask = grey <= thresh
-
-    ys_local, xs_local = np.where(mask)
-
-    if len(xs_local) == 0:
-        return expected_cx, expected_cy
-
-    # Centroid of dark pixels → iris centre
-    cx = int(round(xs_local.mean())) + x0
-    cy = int(round(ys_local.mean())) + y0
-    return cx, cy
 
 
 def _shift_iris_lab(arr: np.ndarray,
@@ -230,8 +177,7 @@ def apply_eye_color(base: Image.Image,
     a_tgt, b_tgt = _EYE_COLOURS[color]
     arr = np.array(base.convert("RGB"), dtype=np.uint8)
 
-    for (ex, ey) in eye_centres:
-        cx, cy = _find_iris_centre(arr, ex, ey, _SEARCH_R)
+    for (cx, cy) in eye_centres:
         arr = _shift_iris_lab(arr, cx, cy, _IRIS_R, a_tgt, b_tgt)
 
     return Image.fromarray(arr, "RGB")

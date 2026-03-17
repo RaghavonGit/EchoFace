@@ -26,7 +26,6 @@ import numpy as np
 from PIL import Image
 
 from generator.glasses_overlay import (
-    apply_lens_tint,
     overlay_glasses_with_landmarks,
 )
 
@@ -39,19 +38,22 @@ _IRIS_R = 26          # iris colour-shift radius (px)
 _FFHQ_L_EYE = (340, 480)
 _FFHQ_R_EYE = (684, 480)
 
-# Map: UI style name → PNG filename in assets/glasses/
-_GLASSES_FILES: dict[str, str] = {
-    "aviator":    "aviator.png",
-    "round":      "round.png",
-    "wayfarer":   "wayfarer.png",
-    "clubmaster": "clubmaster.png",
-    "cat-eye":    "cat_eye.png",
-}
-
 _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "assets", "glasses",
 )
+
+
+def list_glasses_styles() -> list[str]:
+    """Return available glasses style names from assets/glasses/ (filename stems)."""
+    if not os.path.isdir(_ASSETS_DIR):
+        return []
+    return sorted(
+        os.path.splitext(f)[0]
+        for f in os.listdir(_ASSETS_DIR)
+        if f.lower().endswith(".png")
+    )
+
 
 # ── CIE Lab colour-space conversion (pure numpy, D65 illuminant) ──────────────
 
@@ -190,17 +192,15 @@ def apply_eye_color(base: Image.Image,
 def apply_glasses(base: Image.Image,
                   style: str,
                   frame_color: str = "original",
-                  lens_tint: str = "none",
                   landmarks: dict | None = None) -> Image.Image:
     """
-    Composite a glasses PNG overlay onto the face using landmark alignment.
+    Composite a real glasses PNG overlay onto the face using landmark alignment.
 
     Parameters
     ----------
     base        : RGB PIL Image (1024×1024 FFHQ-aligned face).
-    style       : "aviator" | "round" | "wayfarer" | "clubmaster" | "cat-eye" | "none"
+    style       : filename stem of any PNG in assets/glasses/ (e.g. "glasses_1"), or "none"
     frame_color : "original" | "black" | "gold" | "silver" | "tortoise"
-    lens_tint   : "none" | "grey" | "brown" | "blue" | "green"
     landmarks   : dict from detect_landmarks(), or None for FFHQ fallback.
 
     Returns a new RGB PIL Image; *base* is not modified.
@@ -208,30 +208,12 @@ def apply_glasses(base: Image.Image,
     if style == "none":
         return base.copy()
 
-    filename = _GLASSES_FILES.get(style)
-    if filename is None:
-        warnings.warn(f"[EchoFace] Unknown glasses style '{style}' — skipping")
-        return base.copy()
-
-    glasses_path = os.path.join(_ASSETS_DIR, filename)
+    glasses_path = os.path.join(_ASSETS_DIR, style + ".png")
     if not os.path.exists(glasses_path):
-        warnings.warn(
-            f"[EchoFace] Glasses asset not found: {glasses_path} — skipping"
-        )
+        warnings.warn(f"[EchoFace] Glasses asset not found: {glasses_path} — skipping")
         return base.copy()
 
-    result = overlay_glasses_with_landmarks(base, glasses_path, landmarks, frame_color)
-
-    if lens_tint != "none":
-        # Build a minimal landmark dict for apply_lens_tint when landmarks=None.
-        lms_for_tint = landmarks if landmarks is not None else {
-            "left_iris_center":        list(_FFHQ_L_EYE),
-            "right_iris_center":       list(_FFHQ_R_EYE),
-            "interpupillary_distance": _FFHQ_R_EYE[0] - _FFHQ_L_EYE[0],
-        }
-        result = apply_lens_tint(result, lms_for_tint, lens_tint)
-
-    return result
+    return overlay_glasses_with_landmarks(base, glasses_path, landmarks, frame_color)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -242,25 +224,22 @@ def apply_accessories(base: Image.Image,
                       landmarks: dict | None = None,
                       glasses:     str = "none",
                       frame_color: str = "original",
-                      lens_tint:   str = "none",
                       eye_color:   str = "none") -> Image.Image:
     """
     Apply accessories in compositing order starting from the clean base image:
       1. Eye colour (Lab iris chrominance shift via apply_eye_color)
-      2. Glasses overlay (PNG alignment + colourisation + shadow + nose occlusion
-         + lens tint — all handled inside apply_glasses)
+      2. Glasses overlay (real PNG alignment + colourisation + shadow + nose occlusion)
 
     Parameters
     ----------
     base        : RGB PIL Image (1024×1024 FFHQ-aligned face) — never mutated.
     landmarks   : dict from detect_landmarks(), or None for FFHQ fallback.
-    glasses     : "aviator" | "round" | "wayfarer" | "clubmaster" | "cat-eye" | "none"
+    glasses     : filename stem of any PNG in assets/glasses/, or "none"
     frame_color : "original" | "black" | "gold" | "silver" | "tortoise"
-    lens_tint   : "none" | "grey" | "brown" | "blue" | "green"
     eye_color   : "blue" | "green" | "hazel" | "grey" | "brown" | "none"
 
     Returns a new RGB PIL Image; *base* is not modified.
     """
     img = apply_eye_color(base, eye_color, landmarks)
-    img = apply_glasses(img, glasses, frame_color, lens_tint, landmarks)
+    img = apply_glasses(img, glasses, frame_color, landmarks)
     return img

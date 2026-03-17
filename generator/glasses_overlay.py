@@ -15,7 +15,6 @@ Public API
 ----------
 overlay_glasses_with_landmarks(face_img, glasses_path, landmarks, frame_color) -> PIL.Image
 colorize_frame(rgba_array, color_name) -> np.ndarray
-apply_lens_tint(face_img, landmarks, tint_color) -> PIL.Image
 """
 from __future__ import annotations
 
@@ -34,14 +33,6 @@ _FRAME_COLOURS: dict[str, tuple[int, int, int] | None] = {
     "gold":     (212, 175,  55),
     "silver":   (192, 192, 192),
     "original": None,
-}
-
-_LENS_TINTS: dict[str, tuple[int, int, int, int] | None] = {
-    "grey":  (120, 120, 120, 31),
-    "brown": (101,  67,  33, 31),
-    "blue":  ( 30,  80, 160, 31),
-    "green": ( 30, 100,  50, 31),
-    "none":  None,
 }
 
 
@@ -142,44 +133,6 @@ def colorize_frame(rgba_array: np.ndarray, color_name: str) -> np.ndarray:
     return out
 
 
-def apply_lens_tint(face_img: Image.Image,
-                    landmarks: dict,
-                    tint_color: str) -> Image.Image:
-    """
-    Apply semi-transparent tint band over the lens area between the eyes.
-    Uses .get() with safe defaults for optional landmark keys.
-    """
-    tint = _LENS_TINTS.get(tint_color)
-    if tint is None:
-        if tint_color not in _LENS_TINTS:
-            warnings.warn(f"[EchoFace] Unknown lens tint '{tint_color}' — no tint applied.")
-        return face_img.copy()
-
-    r, g, b, a_val = tint
-    li  = landmarks["left_iris_center"]
-    ri  = landmarks["right_iris_center"]
-    ipd = landmarks["interpupillary_distance"]
-
-    x0 = int(li[0] - ipd * 0.4)
-    x1 = int(ri[0] + ipd * 0.4)
-    y0 = int(min(
-        landmarks.get("left_brow_peak",  [0, li[1] - ipd * 0.3])[1],
-        landmarks.get("right_brow_peak", [0, ri[1] - ipd * 0.3])[1],
-    ))
-    y1 = int(landmarks.get("nose_bridge_bottom", [0, li[1] + ipd * 0.3])[1])
-
-    w, h = face_img.size
-    x0, x1 = max(0, min(x0, w)), max(0, min(x1, w))
-    y0, y1 = max(0, min(y0, h)), max(0, min(y1, h))
-
-    if x0 >= x1 or y0 >= y1:
-        return face_img.copy()
-
-    tint_layer = Image.new("RGBA", face_img.size, (0, 0, 0, 0))
-    tint_layer.paste(Image.new("RGBA", (x1 - x0, y1 - y0), (r, g, b, a_val)), (x0, y0))
-    return Image.alpha_composite(face_img.convert("RGBA"), tint_layer).convert("RGB")
-
-
 def overlay_glasses_with_landmarks(face_img:     Image.Image,
                                    glasses_path: str,
                                    landmarks:    dict | None,
@@ -220,8 +173,11 @@ def overlay_glasses_with_landmarks(face_img:     Image.Image,
         glasses_src = _crop_to_frame(glasses_src.convert("RGB"))
     glasses_rgba = _make_frame_alpha(glasses_src)
 
-    h_pad  = int(eye_span * 0.20)
-    g_w    = min(eye_span + 2 * h_pad, int(fw * 0.90))
+    # The PNG canvas has lens centres at 28 % and 72 % of its width,
+    # so the lens-to-lens fraction is 0.44.  Scale so that eye_span maps
+    # exactly onto the inter-lens distance in the PNG.
+    _LENS_CENTRE_FRAC = 0.44
+    g_w    = min(int(eye_span / _LENS_CENTRE_FRAC), int(fw * 0.90))
     aspect = glasses_rgba.height / max(glasses_rgba.width, 1)
     g_h    = int(g_w * aspect)
     glasses_rgba = glasses_rgba.resize((g_w, g_h), Image.LANCZOS)

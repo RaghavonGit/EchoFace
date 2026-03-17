@@ -144,12 +144,12 @@ class TestGenerateFn(unittest.TestCase):
         self.assertEqual(yields[-1][8], "none")
         self.assertEqual(yields[-1][9], "none")
 
-    def test_thirteen_outputs_per_yield(self):
-        """Every yielded tuple must have exactly 13 elements (extended for landmarks)."""
+    def test_twelve_outputs_per_yield(self):
+        """Every yielded tuple must have exactly 12 elements (no lens_tint slot)."""
         w = _mock_wrapper(steps_to_fire=(0, 10))
         yields = _all_yields(text="a young man with short hair", wrapper=w)
         for i, y in enumerate(yields):
-            self.assertEqual(len(y), 13, f"Yield {i} has {len(y)} elements, expected 13")
+            self.assertEqual(len(y), 12, f"Yield {i} has {len(y)} elements, expected 12")
 
 
 # ── export_image tests ────────────────────────────────────────────────────────
@@ -188,42 +188,42 @@ class TestAccessoriesFn(unittest.TestCase):
         return Image.new("RGB", (1024, 1024), (180, 140, 110))
 
     def test_returns_five_tuple(self):
-        result = accessories_fn(self._face(), None, "none", "original", "none", "none")
+        result = accessories_fn(self._face(), None, "none", "original", "none")
         self.assertEqual(len(result), 5)
 
     def test_no_face_returns_guidance(self):
-        result = accessories_fn(None, None, "round", "original", "none", "blue")
+        result = accessories_fn(None, None, "glasses_1", "original", "blue")
         self.assertIsNone(result[0])
         self.assertIn("Generate a face first", result[1])
 
     def test_none_accessories_returns_image(self):
-        result = accessories_fn(self._face(), None, "none", "original", "none", "none")
+        result = accessories_fn(self._face(), None, "none", "original", "none")
         self.assertIsInstance(result[0], np.ndarray)
         self.assertIn("cleared", result[1].lower())
 
     def test_glasses_only_status(self):
-        result = accessories_fn(self._face(), None, "round", "original", "none", "none")
-        self.assertIn("round", result[1].lower())
+        result = accessories_fn(self._face(), None, "glasses_1", "original", "none")
+        self.assertIn("glasses_1", result[1].lower())
         self.assertNotIn("eye", result[1].lower())
 
     def test_eye_only_status(self):
-        result = accessories_fn(self._face(), None, "none", "original", "none", "blue")
+        result = accessories_fn(self._face(), None, "none", "original", "blue")
         self.assertIn("blue", result[1].lower())
         self.assertNotIn("glasses", result[1].lower())
 
     def test_both_accessories_status(self):
-        result = accessories_fn(self._face(), None, "round", "original", "none", "green")
-        self.assertIn("round", result[1].lower())
+        result = accessories_fn(self._face(), None, "glasses_1", "original", "green")
+        self.assertIn("glasses_1", result[1].lower())
         self.assertIn("green", result[1].lower())
 
     def test_stored_image_is_pil(self):
-        result = accessories_fn(self._face(), None, "round", "original", "none", "blue")
+        result = accessories_fn(self._face(), None, "glasses_1", "original", "blue")
         self.assertIsInstance(result[3], Image.Image)
 
     def test_score_out_is_update(self):
         """score_out (index 2) must be gr.update() so CLIP score is preserved."""
         import gradio as gr
-        result = accessories_fn(self._face(), None, "none", "original", "none", "none")
+        result = accessories_fn(self._face(), None, "none", "original", "none")
         # gr.update() returns a dict-like — should not be a plain string
         self.assertNotIsInstance(result[2], str)
 
@@ -235,9 +235,12 @@ class TestApplyAccessories(unittest.TestCase):
     def _face(self):
         return Image.new("RGB", (1024, 1024), (180, 140, 110))
 
-    def test_apply_glasses_round_returns_rgb(self):
+    def test_apply_glasses_glasses_1_returns_rgb(self):
         from generator.accessories import apply_glasses
-        result = apply_glasses(self._face(), "round")
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if not os.path.exists(os.path.join(root, "assets", "glasses", "glasses_1.png")):
+            self.skipTest("glasses_1.png not found")
+        result = apply_glasses(self._face(), "glasses_1")
         self.assertEqual(result.mode, "RGB")
         self.assertEqual(result.size, (1024, 1024))
 
@@ -245,15 +248,10 @@ class TestApplyAccessories(unittest.TestCase):
         """Unknown glasses style falls back to an RGB copy of the input."""
         from generator.accessories import apply_glasses
         face   = self._face()
-        result = apply_glasses(face, "hexagonal", "original", "none", None)
+        result = apply_glasses(face, "hexagonal", "original", None)
         self.assertEqual(result.mode, "RGB")
         self.assertEqual(result.size, face.size)
         np.testing.assert_array_equal(np.array(result), np.array(face))
-
-    def test_apply_glasses_aviator_returns_rgb(self):
-        from generator.accessories import apply_glasses
-        result = apply_glasses(self._face(), "aviator")
-        self.assertEqual(result.mode, "RGB")
 
     def test_apply_glasses_none_equals_copy(self):
         from generator.accessories import apply_glasses
@@ -265,7 +263,7 @@ class TestApplyAccessories(unittest.TestCase):
         from generator.accessories import apply_glasses
         face   = self._face()
         before = np.array(face).copy()
-        apply_glasses(face, "round")
+        apply_glasses(face, "glasses_1")
         self.assertEqual(before.tolist(), np.array(face).tolist())
 
     def test_apply_glasses_modifies_frame_region(self):
@@ -273,15 +271,12 @@ class TestApplyAccessories(unittest.TestCase):
         from generator.accessories import apply_glasses
         face   = self._face()
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        path = os.path.join(root, "assets", "glasses", "round.png")
+        path = os.path.join(root, "assets", "glasses", "glasses_1.png")
         if not os.path.exists(path):
-            self.skipTest("assets/glasses/round.png not found")
-        result = apply_glasses(face, "round")
+            self.skipTest("assets/glasses/glasses_1.png not found")
+        result = apply_glasses(face, "glasses_1")
         arr_f  = np.array(face)
         arr_r  = np.array(result)
-        # PNG-based renderer places the frame in the upper half of the face
-        # (rows 288-535, cols 182-840 for FFHQ fallback).  Assert at least
-        # one pixel in the broad eye band is modified.
         diff = ~(arr_r == arr_f).all(axis=2)
         eye_band = diff[280:540, 180:850]
         self.assertTrue(eye_band.any(),
@@ -319,7 +314,7 @@ class TestApplyAccessories(unittest.TestCase):
         )
         face     = self._face()
         expected = apply_glasses(apply_eye_color(face, "green"), "none")
-        result   = apply_accessories(face, glasses="none", eye_color="green")
+        result   = apply_accessories(face, eye_color="green")
         self.assertEqual(np.array(expected).tolist(), np.array(result).tolist())
 
 
@@ -499,19 +494,6 @@ class TestGlassesOverlayLandmarks(unittest.TestCase):
         result = colorize_frame(rgba.copy(), "original")
         np.testing.assert_array_equal(result, rgba)
 
-    def test_apply_lens_tint_modifies_pixels(self):
-        from generator.glasses_overlay import apply_lens_tint
-        face   = self._face()
-        result = apply_lens_tint(face, self._lms(), "grey")
-        self.assertEqual(result.size, face.size)
-        diff = np.abs(np.array(result).astype(int) - np.array(face).astype(int))
-        self.assertGreater(diff.sum(), 0)
-
-    def test_apply_lens_tint_none_returns_identical_copy(self):
-        from generator.glasses_overlay import apply_lens_tint
-        face   = self._face()
-        result = apply_lens_tint(face, self._lms(), "none")
-        np.testing.assert_array_equal(np.array(result), np.array(face))
 
 
 class TestApplyEyeColorWithLandmarks(unittest.TestCase):
@@ -617,23 +599,23 @@ class TestApplyGlassesWrapper(unittest.TestCase):
     def test_none_style_returns_identical_copy(self):
         from generator.accessories import apply_glasses
         face   = self._face()
-        result = apply_glasses(face, "none", "original", "none", self._lms())
+        result = apply_glasses(face, "none", "original", self._lms())
         np.testing.assert_array_equal(np.array(result), np.array(face))
 
     def test_returns_rgb_same_size_when_asset_present(self):
         from generator.accessories import apply_glasses
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        path = os.path.join(root, "assets", "glasses", "wayfarer.png")
+        path = os.path.join(root, "assets", "glasses", "glasses_1.png")
         if not os.path.exists(path):
-            self.skipTest("wayfarer.png not found — run Task 4")
-        result = apply_glasses(self._face(), "wayfarer", "black", "grey", self._lms())
+            self.skipTest("glasses_1.png not found")
+        result = apply_glasses(self._face(), "glasses_1", "black", self._lms())
         self.assertEqual(result.mode, "RGB")
         self.assertEqual(result.size, (1024, 1024))
 
     def test_unknown_style_returns_identical_copy(self):
         from generator.accessories import apply_glasses
         face   = self._face()
-        result = apply_glasses(face, "monocle", "original", "none", self._lms())
+        result = apply_glasses(face, "monocle", "original", self._lms())
         np.testing.assert_array_equal(np.array(result), np.array(face))
 
 
@@ -662,7 +644,7 @@ class TestApplyAccessoriesPipeline(unittest.TestCase):
         face   = self._face()
         result = apply_accessories(face, None,
                                    glasses="none", frame_color="original",
-                                   lens_tint="none", eye_color="none")
+                                   eye_color="none")
         np.testing.assert_array_equal(np.array(result), np.array(face))
 
     def test_returns_rgb_same_size(self):
@@ -670,7 +652,7 @@ class TestApplyAccessoriesPipeline(unittest.TestCase):
         face   = self._face()
         result = apply_accessories(face, self._lms(),
                                    glasses="none", frame_color="original",
-                                   lens_tint="none", eye_color="blue")
+                                   eye_color="blue")
         self.assertEqual(result.mode, "RGB")
         self.assertEqual(result.size, face.size)
 
@@ -680,12 +662,12 @@ class TestApplyAccessoriesPipeline(unittest.TestCase):
         face_arr = np.full((1024, 1024, 3), (120, 80, 60), dtype=np.uint8)
         face_arr[460:500, 320:360] = (30, 20, 15)   # dark patch at FFHQ L-eye
         face = Image.fromarray(face_arr)
-        no_color = apply_accessories(face, None,
-                                     glasses="none", frame_color="original",
-                                     lens_tint="none", eye_color="none")
+        no_color   = apply_accessories(face, None,
+                                       glasses="none", frame_color="original",
+                                       eye_color="none")
         with_color = apply_accessories(face, None,
                                        glasses="none", frame_color="original",
-                                       lens_tint="none", eye_color="blue")
+                                       eye_color="blue")
         diff = np.abs(np.array(with_color).astype(int) -
                       np.array(no_color).astype(int))
         self.assertGreater(diff.sum(), 0,
@@ -693,7 +675,7 @@ class TestApplyAccessoriesPipeline(unittest.TestCase):
 
 
 class TestAccessoriesFnNewSignature(unittest.TestCase):
-    """Tests for the updated accessories_fn that accepts landmarks + 4 dropdowns."""
+    """Tests for the updated accessories_fn that accepts landmarks + 3 dropdowns."""
 
     def _face(self):
         return Image.new("RGB", (1024, 1024), (140, 110, 80))
@@ -716,33 +698,33 @@ class TestAccessoriesFnNewSignature(unittest.TestCase):
     def test_returns_5_element_tuple(self):
         from ui.app import accessories_fn
         result = accessories_fn(self._face(), self._lms(),
-                                "none", "original", "none", "none")
+                                "none", "original", "none")
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 5)
 
     def test_none_base_returns_none_image_and_generate_prompt(self):
         from ui.app import accessories_fn
         img, status, *_ = accessories_fn(None, None,
-                                         "none", "original", "none", "none")
+                                         "none", "original", "none")
         self.assertIsNone(img)
         self.assertIn("Generate", status)
 
     def test_eye_color_does_not_raise(self):
         from ui.app import accessories_fn
         result = accessories_fn(self._face(), self._lms(),
-                                "none", "original", "none", "blue")
+                                "none", "original", "blue")
         self.assertIsNotNone(result[0])
 
     def test_status_message_includes_selection(self):
         from ui.app import accessories_fn
         _, status, *_ = accessories_fn(self._face(), self._lms(),
-                                       "none", "original", "none", "blue")
+                                       "none", "original", "blue")
         self.assertIn("blue", status.lower())
 
     def test_all_none_status_contains_cleared(self):
         from ui.app import accessories_fn
         _, status, *_ = accessories_fn(self._face(), self._lms(),
-                                       "none", "original", "none", "none")
+                                       "none", "original", "none")
         self.assertIn("clear", status.lower())
 
 

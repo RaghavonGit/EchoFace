@@ -16,7 +16,7 @@ from PIL import Image
 
 import gpu_utils
 from generator.styleclip_wrapper import StyleCLIPWrapper
-from generator.accessories import apply_accessories
+from generator.accessories import apply_accessories, list_glasses_styles
 from generator.landmark_detector import detect_landmarks
 from asr.audio_processor import process_audio
 from asr.transcriber import Transcriber
@@ -292,7 +292,7 @@ def _startup_notice(cfg):
 
 def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
     """
-    Yields 13-element tuples:
+    Yields 12-element tuples:
       0  status_out    (str)
       1  text_in       (str)
       2  score_out     (str)
@@ -305,14 +305,13 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
       9  dd_eye        (str | gr.update)       — reset to "none" on done
      10  landmarks     (dict | None)           — landmark cache for accessories
      11  dd_frame_color (str | gr.update)      — reset to "original" on done
-     12  dd_lens_tint  (str | gr.update)       — reset to "none" on done
     """
     def _y(status, text, score, img, pil, export, loader,
            base_face=gr.update(), dd_g=gr.update(), dd_e=gr.update(),
-           landmarks=gr.update(), dd_fc=gr.update(), dd_lt=gr.update()):
+           landmarks=gr.update(), dd_fc=gr.update()):
         return (status, text, score, img, pil, export,
                 gr.update(value=loader), base_face, dd_g, dd_e,
-                landmarks, dd_fc, dd_lt)
+                landmarks, dd_fc)
 
     audio_path = file_audio if file_audio is not None else mic_audio
     prompt     = text_input.strip() if text_input else ""
@@ -384,7 +383,7 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
                      "", f"CLIP Score: {final_sim:.4f}",
                      final_arr, pil_image, gr.update(visible=True), _LOADER_OFF,
                      base_face=pil_image, dd_g="none", dd_e="none",
-                     landmarks=lms, dd_fc="original", dd_lt="none")
+                     landmarks=lms, dd_fc="original")
             return
 
         elif msg == "progress":
@@ -399,7 +398,7 @@ def generate_fn(mic_audio, file_audio, text_input, wrapper, cfg):
 # ── Accessories handler ───────────────────────────────────────────────────────
 
 def accessories_fn(base_pil, landmarks, glasses_style: str,
-                   frame_color: str, lens_tint: str, eye_color: str):
+                   frame_color: str, eye_color: str):
     """
     Apply accessory overlays on the stored clean face.
     Called whenever any accessories dropdown changes.
@@ -418,7 +417,6 @@ def accessories_fn(base_pil, landmarks, glasses_style: str,
     result = apply_accessories(base_pil, landmarks,
                                glasses=glasses_style,
                                frame_color=frame_color,
-                               lens_tint=lens_tint,
                                eye_color=eye_color)
 
     parts = []
@@ -426,8 +424,6 @@ def accessories_fn(base_pil, landmarks, glasses_style: str,
         parts.append(f"{glasses_style} glasses")
     if frame_color not in ("none", "original"):
         parts.append(f"{frame_color} frame")
-    if lens_tint != "none":
-        parts.append(f"{lens_tint} lens tint")
     if eye_color != "none":
         parts.append(f"{eye_color} eyes")
     msg = ("Applied: " + ", ".join(parts)) if parts else "Accessories cleared."
@@ -529,21 +525,16 @@ def _build_demo(wrapper, cfg):
 
                 # Controls — visible after first generate
                 with gr.Column(visible=False) as acc_inner:
-                    gr.HTML('<div class="ef-sub-label">Frame Style</div>')
+                    gr.HTML('<div class="ef-sub-label">Glasses</div>')
+                    _glasses_choices = ["none"] + list_glasses_styles()
                     dd_glasses = gr.Dropdown(
-                        choices=["none", "aviator", "round", "wayfarer",
-                                 "clubmaster", "cat-eye"],
+                        choices=_glasses_choices,
                         value="none", label="Glasses", interactive=True,
                     )
                     gr.HTML('<div class="ef-sub-label">Frame Colour</div>')
                     dd_frame_color = gr.Dropdown(
                         choices=["original", "black", "gold", "silver", "tortoise"],
                         value="original", label="Frame Color", interactive=True,
-                    )
-                    gr.HTML('<div class="ef-sub-label">Lens Tint</div>')
-                    dd_lens_tint = gr.Dropdown(
-                        choices=["none", "grey", "brown", "blue", "green"],
-                        value="none", label="Lens Tint", interactive=True,
                     )
                     gr.HTML('<div class="ef-sub-label">Eye Colour</div>')
                     dd_eye = gr.Dropdown(
@@ -567,7 +558,7 @@ def _build_demo(wrapper, cfg):
             outputs=[status_out, text_in, score_out, image_out, stored_image,
                      export_btn, loader_html, base_face_state,
                      dd_glasses, dd_eye,
-                     landmarks_state, dd_frame_color, dd_lens_tint],
+                     landmarks_state, dd_frame_color],
         ).then(
             # Show accessory controls once we have a face
             fn=lambda bf: (
@@ -578,13 +569,12 @@ def _build_demo(wrapper, cfg):
             outputs=[acc_inner, acc_placeholder],
         )
 
-        # Accessories — all 4 dropdowns use the same handler;
-        # Gradio passes current values of ALL listed inputs automatically.
-        for _dd in (dd_glasses, dd_frame_color, dd_lens_tint, dd_eye):
+        # Accessories — all 3 dropdowns trigger the same handler.
+        for _dd in (dd_glasses, dd_frame_color, dd_eye):
             _dd.change(
                 fn=accessories_fn,
                 inputs=[base_face_state, landmarks_state,
-                        dd_glasses, dd_frame_color, dd_lens_tint, dd_eye],
+                        dd_glasses, dd_frame_color, dd_eye],
                 outputs=_acc_out,
             )
 

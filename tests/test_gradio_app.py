@@ -145,11 +145,11 @@ class TestGenerateFn(unittest.TestCase):
         self.assertEqual(yields[-1][9], "none")
 
     def test_ten_outputs_per_yield(self):
-        """Every yielded tuple must have exactly 10 elements."""
+        """Every yielded tuple must have exactly 13 elements (extended for landmarks)."""
         w = _mock_wrapper(steps_to_fire=(0, 10))
         yields = _all_yields(text="a young man with short hair", wrapper=w)
         for i, y in enumerate(yields):
-            self.assertEqual(len(y), 10, f"Yield {i} has {len(y)} elements, expected 10")
+            self.assertEqual(len(y), 13, f"Yield {i} has {len(y)} elements, expected 13")
 
 
 # ── export_image tests ────────────────────────────────────────────────────────
@@ -188,42 +188,42 @@ class TestAccessoriesFn(unittest.TestCase):
         return Image.new("RGB", (1024, 1024), (180, 140, 110))
 
     def test_returns_five_tuple(self):
-        result = accessories_fn(self._face(), "none", "none")
+        result = accessories_fn(self._face(), None, "none", "original", "none", "none")
         self.assertEqual(len(result), 5)
 
     def test_no_face_returns_guidance(self):
-        result = accessories_fn(None, "round", "blue")
+        result = accessories_fn(None, None, "round", "original", "none", "blue")
         self.assertIsNone(result[0])
         self.assertIn("Generate a face first", result[1])
 
     def test_none_accessories_returns_image(self):
-        result = accessories_fn(self._face(), "none", "none")
+        result = accessories_fn(self._face(), None, "none", "original", "none", "none")
         self.assertIsInstance(result[0], np.ndarray)
         self.assertIn("cleared", result[1].lower())
 
     def test_glasses_only_status(self):
-        result = accessories_fn(self._face(), "round", "none")
+        result = accessories_fn(self._face(), None, "round", "original", "none", "none")
         self.assertIn("round", result[1].lower())
         self.assertNotIn("eye", result[1].lower())
 
     def test_eye_only_status(self):
-        result = accessories_fn(self._face(), "none", "blue")
+        result = accessories_fn(self._face(), None, "none", "original", "none", "blue")
         self.assertIn("blue", result[1].lower())
         self.assertNotIn("glasses", result[1].lower())
 
     def test_both_accessories_status(self):
-        result = accessories_fn(self._face(), "square", "green")
-        self.assertIn("square", result[1].lower())
+        result = accessories_fn(self._face(), None, "round", "original", "none", "green")
+        self.assertIn("round", result[1].lower())
         self.assertIn("green", result[1].lower())
 
     def test_stored_image_is_pil(self):
-        result = accessories_fn(self._face(), "round", "blue")
+        result = accessories_fn(self._face(), None, "round", "original", "none", "blue")
         self.assertIsInstance(result[3], Image.Image)
 
     def test_score_out_is_update(self):
         """score_out (index 2) must be gr.update() so CLIP score is preserved."""
         import gradio as gr
-        result = accessories_fn(self._face(), "none", "none")
+        result = accessories_fn(self._face(), None, "none", "original", "none", "none")
         # gr.update() returns a dict-like — should not be a plain string
         self.assertNotIsInstance(result[2], str)
 
@@ -731,6 +731,60 @@ class TestApplyAccessoriesPipeline(unittest.TestCase):
                       np.array(no_color).astype(int))
         self.assertGreater(diff.sum(), 0,
                            "Eye colour must produce pixel changes vs. no accessories")
+
+
+class TestAccessoriesFnNewSignature(unittest.TestCase):
+    """Tests for the updated accessories_fn that accepts landmarks + 4 dropdowns."""
+
+    def _face(self):
+        return Image.new("RGB", (1024, 1024), (140, 110, 80))
+
+    def _lms(self):
+        return {
+            "left_iris_center":        [335.0, 480.0],
+            "right_iris_center":       [685.0, 480.0],
+            "interpupillary_distance": 350.0,
+            "nose_bridge_top":         [512.0, 390.0],
+            "nose_bridge_bottom":      [512.0, 530.0],
+            "left_brow_peak":          [330.0, 420.0],
+            "right_brow_peak":         [690.0, 420.0],
+            "left_face_edge":          [100.0, 800.0],
+            "right_face_edge":         [900.0, 800.0],
+            "chin":                    [512.0, 900.0],
+            "jaw_outline":             [[100 + i*50, 800] for i in range(17)],
+        }
+
+    def test_returns_5_element_tuple(self):
+        from ui.app import accessories_fn
+        result = accessories_fn(self._face(), self._lms(),
+                                "none", "original", "none", "none")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 5)
+
+    def test_none_base_returns_none_image_and_generate_prompt(self):
+        from ui.app import accessories_fn
+        img, status, *_ = accessories_fn(None, None,
+                                         "none", "original", "none", "none")
+        self.assertIsNone(img)
+        self.assertIn("Generate", status)
+
+    def test_eye_color_does_not_raise(self):
+        from ui.app import accessories_fn
+        result = accessories_fn(self._face(), self._lms(),
+                                "none", "original", "none", "blue")
+        self.assertIsNotNone(result[0])
+
+    def test_status_message_includes_selection(self):
+        from ui.app import accessories_fn
+        _, status, *_ = accessories_fn(self._face(), self._lms(),
+                                       "none", "original", "none", "blue")
+        self.assertIn("blue", status.lower())
+
+    def test_all_none_status_contains_cleared(self):
+        from ui.app import accessories_fn
+        _, status, *_ = accessories_fn(self._face(), self._lms(),
+                                       "none", "original", "none", "none")
+        self.assertIn("clear", status.lower())
 
 
 if __name__ == '__main__':

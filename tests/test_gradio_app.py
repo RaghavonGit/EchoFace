@@ -469,5 +469,90 @@ class TestShiftIrisLab(unittest.TestCase):
             "Blue channel too low — Lab replacement failed on dark iris")
 
 
+class TestGlassesOverlayLandmarks(unittest.TestCase):
+    """Tests for landmark-based glasses overlay and colorization functions."""
+
+    def _face(self):
+        return Image.new("RGB", (1024, 1024), (180, 140, 110))
+
+    def _lms(self):
+        return {
+            "left_iris_center":        [335.0, 480.0],
+            "right_iris_center":       [685.0, 480.0],
+            "interpupillary_distance": 350.0,
+            "nose_bridge_top":         [512.0, 390.0],
+            "nose_bridge_bottom":      [512.0, 530.0],
+            "left_brow_peak":          [330.0, 420.0],
+            "right_brow_peak":         [690.0, 420.0],
+            "left_face_edge":          [100.0, 800.0],
+            "right_face_edge":         [900.0, 800.0],
+            "chin":                    [512.0, 900.0],
+            "jaw_outline":             [[100 + i*50, 800] for i in range(17)],
+        }
+
+    def _glasses_path(self, style="wayfarer"):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(root, "assets", "glasses", f"{style}.png")
+
+    def test_overlay_with_landmarks_returns_rgb_1024(self):
+        from generator.glasses_overlay import overlay_glasses_with_landmarks
+        path = self._glasses_path()
+        if not os.path.exists(path):
+            self.skipTest("assets/glasses/wayfarer.png not found — run Task 4")
+        result = overlay_glasses_with_landmarks(self._face(), path, self._lms())
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (1024, 1024))
+
+    def test_overlay_fallback_when_landmarks_none_does_not_raise(self):
+        from generator.glasses_overlay import overlay_glasses_with_landmarks
+        path = self._glasses_path()
+        if not os.path.exists(path):
+            self.skipTest("assets/glasses/wayfarer.png not found — run Task 4")
+        result = overlay_glasses_with_landmarks(self._face(), path, None)
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (1024, 1024))
+
+    def test_colorize_frame_black_sets_rgb_to_near_black(self):
+        from generator.glasses_overlay import colorize_frame
+        rgba = np.zeros((100, 200, 4), dtype=np.uint8)
+        rgba[:, :, :3] = 80
+        rgba[:, :, 3]  = 255
+        result = colorize_frame(rgba.copy(), "black")
+        self.assertEqual(result.shape, rgba.shape)
+        self.assertEqual(result.dtype, np.uint8)
+        self.assertTrue((result[:, :, 0] <= 15).all())
+
+    def test_colorize_frame_gold_differs_from_black(self):
+        from generator.glasses_overlay import colorize_frame
+        rgba = np.zeros((100, 200, 4), dtype=np.uint8)
+        rgba[:, :, :3] = 80
+        rgba[:, :, 3]  = 255
+        black = colorize_frame(rgba.copy(), "black")
+        gold  = colorize_frame(rgba.copy(), "gold")
+        self.assertFalse(np.array_equal(black, gold))
+
+    def test_colorize_frame_original_returns_unchanged(self):
+        from generator.glasses_overlay import colorize_frame
+        rgba = np.zeros((50, 100, 4), dtype=np.uint8)
+        rgba[:, :, :3] = 80
+        rgba[:, :, 3]  = 200
+        result = colorize_frame(rgba.copy(), "original")
+        np.testing.assert_array_equal(result, rgba)
+
+    def test_apply_lens_tint_modifies_pixels(self):
+        from generator.glasses_overlay import apply_lens_tint
+        face   = self._face()
+        result = apply_lens_tint(face, self._lms(), "grey")
+        self.assertEqual(result.size, face.size)
+        diff = np.abs(np.array(result).astype(int) - np.array(face).astype(int))
+        self.assertGreater(diff.sum(), 0)
+
+    def test_apply_lens_tint_none_returns_identical_copy(self):
+        from generator.glasses_overlay import apply_lens_tint
+        face   = self._face()
+        result = apply_lens_tint(face, self._lms(), "none")
+        np.testing.assert_array_equal(np.array(result), np.array(face))
+
+
 if __name__ == '__main__':
     unittest.main()
